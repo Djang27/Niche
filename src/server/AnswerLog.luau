@@ -113,8 +113,19 @@ end
 
 ---------------------------------------------------------------- logging
 
+-- Diagnostics must never break a round. These run on the main game loop, so an
+-- error escaping one of them would kill that thread and hang the whole server.
+local function safe(fn)
+	return function(...)
+		local ok, err = pcall(fn, ...)
+		if not ok then
+			warn(("[AnswerLog] dropped an entry: %s"):format(tostring(err)))
+		end
+	end
+end
+
 -- one round of one prompt: how many players saw it, and what got locked in
-function AnswerLog.logRound(prompt, seen, submitted)
+AnswerLog.logRound = safe(function(prompt, seen, submitted)
 	if not enabled then return end
 	local b = bucketFor(prompt)
 	b.plays += 1
@@ -122,26 +133,26 @@ function AnswerLog.logRound(prompt, seen, submitted)
 	for _, answer in ipairs(submitted) do
 		b.accepted[answer] = (b.accepted[answer] or 0) + 1
 	end
-end
+end)
 
 -- typed something the list doesn't know at all: probably a missing answer
-function AnswerLog.logMiss(prompt, raw)
+AnswerLog.logMiss = safe(function(prompt, raw)
 	if not enabled then return end
 	local text = cleanText(raw)
 	if not text then return end
 	local b = bucketFor(prompt)
 	b.rejected[text] = (b.rejected[text] or 0) + 1
-end
+end)
 
 -- typed something we auto-corrected: probably a missing alias or spelling
-function AnswerLog.logNearMiss(prompt, raw, canonical)
+AnswerLog.logNearMiss = safe(function(prompt, raw, canonical)
 	if not enabled then return end
 	local text = cleanText(raw)
 	if not text then return end
 	local b = bucketFor(prompt)
 	local pair = text .. " -> " .. canonical
 	b.nearMiss[pair] = (b.nearMiss[pair] or 0) + 1
-end
+end)
 
 ---------------------------------------------------------------- writing
 
@@ -204,11 +215,15 @@ if enabled then
 	task.spawn(function()
 		while true do
 			task.wait(FLUSH_INTERVAL)
-			AnswerLog.flush()
+			-- keep the loop alive even if one flush blows up
+			local ok, err = pcall(AnswerLog.flush)
+			if not ok then
+				warn(("[AnswerLog] flush failed: %s"):format(tostring(err)))
+			end
 		end
 	end)
 	game:BindToClose(function()
-		AnswerLog.flush()
+		pcall(AnswerLog.flush)
 	end)
 end
 

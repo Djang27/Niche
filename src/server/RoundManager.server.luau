@@ -339,8 +339,20 @@ end
 while true do
 	waitForStart()
 	startMatch()
-	if runMatch() then
-		runPodium()
+
+	-- Without this, any error inside a match kills this thread for good: the server
+	-- would sit in InMatch forever and every client would hang with no way out.
+	-- Dropping back to the lobby loses a match, which is a far better failure.
+	local ok, err = pcall(function()
+		if runMatch() then
+			runPodium()
+		end
+	end)
+	if not ok then
+		warn(("[RoundManager] match failed, returning everyone to the lobby: %s"):format(tostring(err)))
+		acceptingAnswers = false
+		currentPrompt = nil
 	end
+
 	endMatch()
 end
