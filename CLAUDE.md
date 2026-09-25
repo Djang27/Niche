@@ -37,6 +37,9 @@ src/server/ (-> ServerScriptService)
   `require(game.ServerScriptService.Modes.Niche.AnswerLog).report()`. Owner-only diagnostics: the
   rejected bucket is raw player text and must never reach a client unfiltered.
 - `Modes/Niche/Lists/*.luau`: one module per category. Pure data.
+- `Shared/TextFilter.luau`: TextService wrapper for any player-typed text other players will see.
+  `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
+  Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
 
 src/client/ (-> StarterPlayer.StarterPlayerScripts)
 - `GameUI.client.luau`: the shell's UI. Lobby and podium screens plus screen switching (polls attributes
@@ -102,27 +105,30 @@ return {
 ## Rules to keep
 - Server authoritative. Answer lists stay on the server (never in ReplicatedStorage). The server re-validates every
   submission; never trust the client for scores or answers.
-- Only canonical list answers are ever shown to other players, so no text filtering is needed today.
-  If any free-form player text is ever broadcast, it must go through TextService filtering. Both planned
-  modes broadcast free-form text (Wavelength clues, related-words answers), so a `TextFilter` module is a
-  hard prerequisite for either one, not a polish item.
+- Any player-typed text that another player will see must go through `Shared/TextFilter.luau` first.
+  Niche is exempt only because it broadcasts canonical answers from its own lists, never what was typed.
+  The moment a mode shows one player what another player wrote (Wavelength clues, related-words answers),
+  it goes through TextFilter. Those functions never return the original string - they mask it on failure -
+  so never "fall back" to the raw text when filtering errors.
 - Modes never create remotes, touch scores directly, or reach into the shell: everything goes through
   `ctx` and ModeEvent / ModeRequest. Keeping that boundary is what makes adding a game cheap.
 - Never sell anything that affects scoring (future monetization is cosmetic / host controls only).
 - Keep tunables as constants at the top of files (timers, rounds, MIN_PLAYERS, etc).
 
 ## Roadmap (rough order)
-Done: answer logging to DataStore; the shell/mode split; lobby mode picker.
+Done: answer logging to DataStore; the shell/mode split; lobby mode picker; `Shared/TextFilter.luau`.
 The planned games below are provisional - the owner expects to swap them out and add others, so
 nothing should hardcode a specific game outside its own module.
 1. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them
-2. `TextFilter` module wrapping TextService:FilterStringAsync (see Rules to keep)
-4. Wavelength as the second mode. Built before the related-words game on purpose: asymmetric roles,
-   two-phase rounds and slider input stress-test the mode interface hardest, and its scoring is simpler.
-5. Data-driven tiers from real answer frequency
-6. "Say words related to a topic" mode. Blocked on a design answer first: how to match free-form words
+2. A second mode. Wavelength was the pick: asymmetric roles, two-phase rounds and slider input
+   stress-test the mode interface hardest, and its scoring is simpler than the alternatives.
+3. Game-selection menu screen (Jackbox-style: pick a game, then reach its lobby). Deferred 2026-09-25 -
+   the one-line `Game: <name>` row is fine for now. Raise it once a second mode exists, which is the
+   point the row stops being enough.
+4. Data-driven tiers from real answer frequency
+5. "Say words related to a topic" mode. Blocked on a design answer first: how to match free-form words
    across players with no canonical list ("dog" vs "dogs" vs "Dog").
-7. Ranked-lite: rating per player (pairwise Elo scaled by opponent count), ranks in lobby, global leaderboard.
+6. Ranked-lite: rating per player (pairwise Elo scaled by opponent count), ranks in lobby, global leaderboard.
    Private servers and matches under 3 players do not count.
-8. Real ranked queue (MemoryStoreService + TeleportService) only once concurrent players can support it
-9. Cosmetic passes: Legendary reveal effects, Party Host pass (custom lobby settings, non-ranked only)
+7. Real ranked queue (MemoryStoreService + TeleportService) only once concurrent players can support it
+8. Cosmetic passes: Legendary reveal effects, Party Host pass (custom lobby settings, non-ranked only)
