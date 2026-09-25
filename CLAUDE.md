@@ -42,9 +42,14 @@ src/server/ (-> ServerScriptService)
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
 - `Shared/Spectrums.luau`: Wavelength dial content, pairs of opposed labels, plus `pick(n)` with
   no-repeat memory. Server only, like the answer lists.
+- `Shared/Categories.luau`: broad subject areas (Food, Sports, Movies...) plus `pick(n)`. Three are
+  offered each Wavelength round and the clue giver takes one, which is what stops the clue from
+  being about anything in existence. Keep entries broad - a narrow category makes the round worse.
 - `Modes/WavelengthSolo/init.luau`: each round pairs one clue giver with one guesser and both score
   by how close the guess lands; the pair rotates each round and everyone else watches. The target
-  goes only to the clue giver via `ctx.sendTo`. Clues are filtered. Capped at 4 players.
+  goes only to the clue giver via `ctx.sendTo`. The clue giver is offered 3 random categories and
+  must take one before sending, folded into the clue step so rounds don't grow a phase. Clues are
+  filtered. Capped at 4 players, and needs at least 2 so it cannot start in single-player Play Solo.
 
 src/client/ (-> StarterPlayer.StarterPlayerScripts)
 - `GameUI.client.luau`: the shell's UI. Screens are menu -> modes -> lobby -> the active mode's own

@@ -4,10 +4,15 @@
 -- Both score the same points, based on how close the guess landed. The pair rotates
 -- every round so everyone takes both jobs. Other players watch that round.
 --
+-- The clue giver is offered three random categories and must pick one, so their clue
+-- comes from a known subject area. Without that the clue could be anything in existence,
+-- which is far too wide a space for the guesser to place on the dial.
+--
 -- The target position is the whole game, so it goes ONLY to the clue giver via
 -- ctx.sendTo. Everyone else learns it at the reveal.
 
 local Spectrums = require(script.Parent.Parent.Shared.Spectrums)
+local Categories = require(script.Parent.Parent.Shared.Categories)
 local TextFilter = require(script.Parent.Parent.Shared.TextFilter)
 
 local WavelengthSolo = {
@@ -19,10 +24,11 @@ local WavelengthSolo = {
 }
 
 -- tweak these
-local CLUE_TIME = 25
+local CLUE_TIME = 30 -- picking a category happens inside this, so it is a little longer
 local GUESS_TIME = 20
 local REVEAL_TIME = 7
 local MAX_CLUE_LEN = 40
+local CATEGORY_CHOICES = 3
 
 -- how close the guess has to be, and what it pays
 local BANDS = {
@@ -37,6 +43,8 @@ local currentSpectrum = nil
 local target = nil
 local hinter, guesser = nil, nil
 local phase = nil -- nil | "clue" | "guess"
+local categoryOptions = {}
+local chosenCategory = nil
 local clue = nil
 local guess = nil
 
@@ -73,7 +81,8 @@ end
 
 function WavelengthSolo.beginMatch(ctx)
 	currentSpectrum, target, hinter, guesser = nil, nil, nil, nil
-	phase, clue, guess = nil, nil, nil
+	phase, clue, guess, chosenCategory = nil, nil, nil, nil
+	categoryOptions = {}
 
 	spectrums = Spectrums.pick(ctx.rounds)
 	ctx.rounds = #spectrums
@@ -88,14 +97,16 @@ function WavelengthSolo.runRound(ctx, round)
 
 	-- keep off the very ends, where a clue is barely a puzzle
 	target = 0.08 + math.random() * 0.84
-	clue, guess = nil, nil
+	clue, guess, chosenCategory = nil, nil, nil
+	categoryOptions = Categories.pick(CATEGORY_CHOICES)
 
 	-- UserIds go with the names: display names are not unique, so the client must not
 	-- work out whose turn it is by comparing them
 	ctx.send("round", round, ctx.rounds,
 		currentSpectrum.left, currentSpectrum.right,
 		hinter.UserId, hinter.DisplayName,
-		guesser.UserId, guesser.DisplayName, CLUE_TIME)
+		guesser.UserId, guesser.DisplayName,
+		CLUE_TIME, categoryOptions)
 	ctx.sendTo(hinter, "target", target)
 
 	phase = "clue"
@@ -113,7 +124,7 @@ function WavelengthSolo.runRound(ctx, round)
 	end
 	-- 0 seconds tells the client there is nothing to guess at, so it doesn't briefly
 	-- arm the dial before the reveal lands
-	ctx.send("clue", shown, clue and GUESS_TIME or 0)
+	ctx.send("clue", chosenCategory or "", shown, clue and GUESS_TIME or 0)
 
 	if clue then
 		phase = "guess"
@@ -142,7 +153,8 @@ end
 function WavelengthSolo.endMatch()
 	phase = nil
 	currentSpectrum, target, hinter, guesser = nil, nil, nil, nil
-	clue, guess = nil, nil
+	clue, guess, chosenCategory = nil, nil, nil
+	categoryOptions = {}
 end
 
 function WavelengthSolo.playerLeft(_, player)
@@ -153,17 +165,21 @@ end
 
 ---------------------------------------------------------------- client messages
 
-function WavelengthSolo.onEvent(_, player, kind, value)
+-- "clue" carries which of the offered categories was picked plus the clue text.
+-- "guess" carries a dial position from 0 to 1.
+function WavelengthSolo.onEvent(_, player, kind, a, b)
 	if kind == "clue" then
 		if phase ~= "clue" or player ~= hinter or clue then return end
-		if typeof(value) ~= "string" then return end
-		local text = value:gsub("^%s+", ""):gsub("%s+$", "")
+		if typeof(a) ~= "number" or not categoryOptions[a] then return end
+		if typeof(b) ~= "string" then return end
+		local text = b:gsub("^%s+", ""):gsub("%s+$", "")
 		if text == "" or #text > MAX_CLUE_LEN then return end
+		chosenCategory = categoryOptions[a]
 		clue = text
 	elseif kind == "guess" then
 		if phase ~= "guess" or player ~= guesser or guess then return end
-		if typeof(value) ~= "number" or value ~= value then return end -- NaN check
-		guess = math.clamp(value, 0, 1)
+		if typeof(a) ~= "number" or a ~= a then return end -- NaN check
+		guess = math.clamp(a, 0, 1)
 	end
 end
 

@@ -1,5 +1,6 @@
 -- ModuleScript: StarterPlayerScripts > Modes > WavelengthSolo
--- The Wavelength dial. One player writes a clue, one drags the marker, the rest watch.
+-- The Wavelength dial. One player picks a category and writes a clue, one player drags
+-- the marker, the rest watch.
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -18,6 +19,7 @@ local WavelengthSolo = {
 local api
 local frame, roundLabel, roleLabel, leftLabel, rightLabel
 local bar, marker, targetMarker, clueBox, submitButton, statusLabel, resultLabel
+local categoryButtons = {}
 
 local myGuess = 0.5
 local dragging = false
@@ -25,6 +27,7 @@ local canDrag = false
 local role = "watch" -- "hint" | "guess" | "watch"
 local submitted = false
 local phaseId = 0
+local pickedCategory = nil
 
 ---------------------------------------------------------------- dial
 
@@ -37,6 +40,31 @@ local function updateFromInput(input)
 	local frac = (input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X
 	myGuess = math.clamp(frac, 0, 1)
 	setMarker(marker, myGuess)
+end
+
+---------------------------------------------------------------- categories
+
+local function paintCategories()
+	for i, b in ipairs(categoryButtons) do
+		b.BackgroundColor3 = (pickedCategory == i) and UiKit.GREEN or Color3.fromRGB(45, 45, 60)
+	end
+end
+
+local function showCategories(options)
+	pickedCategory = nil
+	for i, b in ipairs(categoryButtons) do
+		local name = options and options[i]
+		b.Text = name or ""
+		b.Visible = name ~= nil
+	end
+	paintCategories()
+end
+
+local function hideCategories()
+	for _, b in ipairs(categoryButtons) do
+		b.Visible = false
+	end
+	pickedCategory = nil
 end
 
 ---------------------------------------------------------------- phases
@@ -53,7 +81,7 @@ local function startTimer(seconds, prefix)
 	end)
 end
 
-local function onRound(round, total, left, right, hinterId, hinterName, guesserId, guesserName, seconds)
+local function onRound(round, total, left, right, hinterId, hinterName, guesserId, guesserName, seconds, categories)
 	roundLabel.Text = ("Round %d / %d"):format(round, total)
 	leftLabel.Text = left
 	rightLabel.Text = right
@@ -68,8 +96,9 @@ local function onRound(round, total, left, right, hinterId, hinterName, guesserI
 	-- by UserId, never DisplayName: two players can share a display name
 	if hinterId == localPlayer.UserId then
 		role = "hint"
-		roleLabel.Text = ("You give the clue. %s is guessing"):format(guesserName)
+		roleLabel.Text = "Pick a category, then write your clue"
 		roleLabel.TextColor3 = UiKit.YELLOW
+		showCategories(categories)
 		clueBox.Visible = true
 		clueBox.Text = ""
 		clueBox.TextEditable = true
@@ -79,17 +108,19 @@ local function onRound(round, total, left, right, hinterId, hinterName, guesserI
 		role = "guess"
 		roleLabel.Text = ("You're guessing. %s is writing a clue"):format(hinterName)
 		roleLabel.TextColor3 = UiKit.GREEN
+		hideCategories()
 		clueBox.Visible = false
 		submitButton.Visible = false
 	else
 		role = "watch"
 		roleLabel.Text = ("%s gives the clue, %s guesses"):format(hinterName, guesserName)
 		roleLabel.TextColor3 = UiKit.DIM
+		hideCategories()
 		clueBox.Visible = false
 		submitButton.Visible = false
 	end
 
-	startTimer(seconds, role == "hint" and "Write your clue" or "Clue coming")
+	startTimer(seconds, role == "hint" and "Your turn" or "Clue coming")
 end
 
 -- only the clue giver gets this, and only they ever see the target before the reveal
@@ -98,8 +129,10 @@ local function onTarget(value)
 	setMarker(targetMarker, value)
 end
 
-local function onClue(text, seconds)
-	resultLabel.Text = ("Clue: %s"):format(UiKit.escape(text))
+local function onClue(category, text, seconds)
+	hideCategories()
+	resultLabel.Text = ("<b>%s</b>\n\"%s\""):format(
+		UiKit.escape(category ~= "" and category or "No category"), UiKit.escape(text))
 
 	if role == "guess" and seconds > 0 then
 		canDrag = true
@@ -109,10 +142,12 @@ local function onClue(text, seconds)
 		submitButton.Text = "Lock in guess"
 		clueBox.Visible = false
 		roleLabel.Text = "Drag the marker, then lock it in"
+		roleLabel.TextColor3 = UiKit.GREEN
 		startTimer(seconds, "Guessing")
 	else
 		if role == "hint" then
 			clueBox.TextEditable = false
+			clueBox.Visible = false
 			submitButton.Visible = false
 		end
 		startTimer(seconds, "Waiting on the guess")
@@ -124,6 +159,7 @@ local function onReveal(targetValue, guessValue, points, label, hinterName, gues
 	canDrag = false
 	submitButton.Visible = false
 	clueBox.Visible = false
+	hideCategories()
 	statusLabel.Text = ""
 
 	targetMarker.Visible = true
@@ -137,8 +173,8 @@ local function onReveal(targetValue, guessValue, points, label, hinterName, gues
 
 	roleLabel.Text = label
 	roleLabel.TextColor3 = points > 0 and UiKit.GREEN or UiKit.RED
-	resultLabel.Text = ("%s  +%d each\n%s: %d    %s: %d"):format(
-		label, points,
+	resultLabel.Text = ("+%d each\n%s: %d    %s: %d"):format(
+		points,
 		UiKit.escape(hinterName), hinterTotal,
 		UiKit.escape(guesserName), guesserTotal)
 end
@@ -167,6 +203,7 @@ function WavelengthSolo.reset()
 	rightLabel.Text = ""
 	statusLabel.Text = ""
 	resultLabel.Text = ""
+	hideCategories()
 	clueBox.Visible = false
 	submitButton.Visible = false
 	marker.Visible = false
@@ -176,9 +213,14 @@ end
 ---------------------------------------------------------------- build
 
 local function submit()
-	if role == "hint" and not submitted and clueBox.Text ~= "" then
+	if role == "hint" and not submitted then
+		if not pickedCategory then
+			statusLabel.Text = "Pick a category first"
+			return
+		end
+		if clueBox.Text == "" then return end
 		submitted = true
-		api.send("clue", clueBox.Text)
+		api.send("clue", pickedCategory, clueBox.Text)
 		clueBox.TextEditable = false
 		submitButton.Visible = false
 		statusLabel.Text = "Clue sent"
@@ -206,18 +248,18 @@ function WavelengthSolo.build(parent, modeApi)
 	})
 
 	leftLabel = UiKit.label(frame, {
-		Size = UDim2.new(0.45, 0, 0.07, 0), Position = UDim2.new(0, 10, 0.24, 0),
+		Size = UDim2.new(0.45, 0, 0.07, 0), Position = UDim2.new(0, 10, 0.23, 0),
 		TextScaled = true, TextColor3 = UiKit.BLUE,
 		TextXAlignment = Enum.TextXAlignment.Left, Text = "",
 	})
 	rightLabel = UiKit.label(frame, {
-		Size = UDim2.new(0.45, 0, 0.07, 0), Position = UDim2.new(0.55, -10, 0.24, 0),
+		Size = UDim2.new(0.45, 0, 0.07, 0), Position = UDim2.new(0.55, -10, 0.23, 0),
 		TextScaled = true, TextColor3 = UiKit.YELLOW,
 		TextXAlignment = Enum.TextXAlignment.Right, Text = "",
 	})
 
 	bar = UiKit.make("Frame", {
-		Size = UDim2.new(1, -40, 0.06, 0), Position = UDim2.new(0, 20, 0.33, 0),
+		Size = UDim2.new(1, -40, 0.06, 0), Position = UDim2.new(0, 20, 0.32, 0),
 		BackgroundColor3 = Color3.fromRGB(45, 45, 60), Parent = frame,
 	})
 	UiKit.make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
@@ -234,8 +276,28 @@ function WavelengthSolo.build(parent, modeApi)
 	})
 	UiKit.make("UICorner", { CornerRadius = UDim.new(0, 3), Parent = marker })
 
+	-- three category choices, clue giver only
+	local CAT_POS = {
+		UDim2.new(0, 10, 0.42, 0),
+		UDim2.new(0.3333, 4, 0.42, 0),
+		UDim2.new(0.6667, 4, 0.42, 0),
+	}
+	for i = 1, 3 do
+		local b = UiKit.button(frame, "", Color3.fromRGB(45, 45, 60),
+			UDim2.new(0.3333, -14, 0.09, 0), CAT_POS[i])
+		b.Font = Enum.Font.GothamMedium
+		b.Visible = false
+		b.Activated:Connect(function()
+			if role ~= "hint" or submitted then return end
+			pickedCategory = i
+			statusLabel.Text = ""
+			paintCategories()
+		end)
+		categoryButtons[i] = b
+	end
+
 	clueBox = UiKit.make("TextBox", {
-		Size = UDim2.new(0.66, -15, 0.11, 0), Position = UDim2.new(0, 10, 0.45, 0),
+		Size = UDim2.new(0.66, -15, 0.11, 0), Position = UDim2.new(0, 10, 0.53, 0),
 		PlaceholderText = "One word or phrase...", Text = "", ClearTextOnFocus = false,
 		TextScaled = true, Font = Enum.Font.Gotham, TextColor3 = UiKit.WHITE,
 		BackgroundColor3 = Color3.fromRGB(45, 45, 60), Visible = false, Parent = frame,
@@ -243,16 +305,16 @@ function WavelengthSolo.build(parent, modeApi)
 	UiKit.make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = clueBox })
 
 	submitButton = UiKit.button(frame, "Send clue", UiKit.BLUE,
-		UDim2.new(0.34, -15, 0.11, 0), UDim2.new(0.66, 5, 0.45, 0))
+		UDim2.new(0.34, -15, 0.11, 0), UDim2.new(0.66, 5, 0.53, 0))
 	submitButton.Visible = false
 
 	statusLabel = UiKit.label(frame, {
-		Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.59, 0),
+		Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.66, 0),
 		TextScaled = true, Font = Enum.Font.GothamMedium, TextColor3 = UiKit.YELLOW, Text = "",
 	})
 
 	resultLabel = UiKit.label(frame, {
-		Size = UDim2.new(1, -20, 0.2, 0), Position = UDim2.new(0, 10, 0.68, 0),
+		Size = UDim2.new(1, -20, 0.2, 0), Position = UDim2.new(0, 10, 0.75, 0),
 		TextWrapped = true, RichText = true, TextSize = 18,
 		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
 	})
