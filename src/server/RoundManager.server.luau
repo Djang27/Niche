@@ -129,6 +129,7 @@ end
 local function onPlayerAdded(player)
 	player:SetAttribute("Ready", false)
 	player:SetAttribute("InMatch", false)
+	player:SetAttribute("InLobby", false) -- everyone starts on the menu, not in the lobby
 	table.insert(joinOrder, player)
 	updateHost()
 end
@@ -154,8 +155,20 @@ local function fireParticipants(remote, ...)
 	end
 end
 
+-- Only players sitting in the lobby count towards starting a match. Anyone browsing the
+-- menu or the store is ignored, otherwise one idle player would block every countdown.
+local function lobbyPlayers()
+	local list = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p:GetAttribute("InLobby") then
+			table.insert(list, p)
+		end
+	end
+	return list
+end
+
 local function allReady()
-	local list = Players:GetPlayers()
+	local list = lobbyPlayers()
 	if #list < MIN_PLAYERS then
 		return false
 	end
@@ -230,8 +243,16 @@ end)
 LobbyAction.OnServerEvent:Connect(function(player, action, value)
 	local isHost = player.UserId == ReplicatedStorage:GetAttribute("HostUserId")
 
-	if action == "ready" or action == "unready" then
-		if state == "Lobby" or state == "Countdown" then
+	if action == "inLobby" then
+		-- the client tells us which screen it is on, so the countdown only waits on
+		-- people who are actually in the lobby
+		local inLobby = value == true
+		player:SetAttribute("InLobby", inLobby)
+		if not inLobby then
+			player:SetAttribute("Ready", false)
+		end
+	elseif action == "ready" or action == "unready" then
+		if (state == "Lobby" or state == "Countdown") and player:GetAttribute("InLobby") then
 			player:SetAttribute("Ready", action == "ready")
 		end
 	elseif action == "start" then
@@ -272,7 +293,7 @@ local function countdownHolds()
 	if not activeMode then
 		return false
 	end
-	if #Players:GetPlayers() < math.max(MIN_PLAYERS, activeMode.minPlayers or 1) then
+	if #lobbyPlayers() < math.max(MIN_PLAYERS, activeMode.minPlayers or 1) then
 		return false
 	end
 	return forceStart or allReady()
@@ -307,7 +328,8 @@ end
 local function startMatch()
 	participants = {}
 	scores = {}
-	for _, p in ipairs(Players:GetPlayers()) do
+	-- only people in the lobby get pulled in, never someone sitting on the menu
+	for _, p in ipairs(lobbyPlayers()) do
 		participants[p] = true
 		scores[p] = 0
 		p:SetAttribute("InMatch", true)

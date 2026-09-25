@@ -42,8 +42,12 @@ src/server/ (-> ServerScriptService)
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
 
 src/client/ (-> StarterPlayer.StarterPlayerScripts)
-- `GameUI.client.luau`: the shell's UI. Lobby and podium screens plus screen switching (polls attributes
-  every 0.2s). Builds every mode in `Modes/` at startup and shows only the active one's frame.
+- `GameUI.client.luau`: the shell's UI. Screens are menu -> modes -> lobby -> the active mode's own
+  screen -> podium, switched by polling attributes every 0.2s. Menu/modes/lobby are *local* navigation
+  (each player browses independently); a match the player is in overrides it. Builds every mode in
+  `Modes/` at startup and shows only the active one's frame. The modes screen lists playable games
+  first, then greyed-out entries from its `PLANNED` list - a planned name drops off automatically once
+  a real module with that name exists.
 - `UiKit.luau`: shared make/panel/label/button/escape helpers and the colour palette.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
 
@@ -66,7 +70,9 @@ reach the server half. The shell calls `reset()` when a match ends.
 ## State the client reads (attributes)
 - ReplicatedStorage: `GameState` ("Lobby" | "Countdown" | "InMatch" | "Podium"), `Countdown`, `HostUserId`,
   `ActiveMode` (module name of the mode currently loaded, e.g. "Niche")
-- Each Player: `Ready`, `InMatch`
+- Each Player: `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
+  rather than browsing the menu or store). Only `InLobby` players count towards starting a match and
+  only they get pulled into one, so an idle player on the menu can never block a countdown.
 - `ReplicatedStorage.AvailableModes`: one StringValue per loadable mode (Name = module name,
   Value = display name, attribute `MinPlayers`). The client builds the lobby's game picker from
   this intersected with the modes it has screens for, so nothing is hardcoded per game.
@@ -74,7 +80,8 @@ reach the server half. The shell calls `reset()` when a match ends.
 ## Remotes (ReplicatedStorage.Remotes)
 All shell-owned and mode-agnostic. Modes never create their own remotes.
 - RemoteEvent `LobbyAction`: client -> server, actions "ready", "unready", "start", "playAgain", "toLobby",
-  and "setMode" (second arg is a mode id; host only, lobby only)
+  "setMode" (second arg is a mode id; host only, lobby only), and "inLobby" (second arg is a boolean;
+  leaving the lobby also clears Ready)
 - RemoteEvent `MatchOver`: server -> client, final standings
 - RemoteEvent `ModeEvent`: both directions, first arg is a kind string the active mode defines
 - RemoteFunction `ModeRequest`: client asks the active mode something, first arg is a kind string
