@@ -246,6 +246,9 @@ local function lockIn()
 	elseif status == "invalid" then
 		setHint("Not an answer, try again", RED)
 		input:CaptureFocus()
+	elseif status == "slow" then
+		setHint("Slow down a second", RED)
+		input:CaptureFocus()
 	end
 end
 
