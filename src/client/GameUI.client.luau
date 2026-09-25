@@ -65,6 +65,25 @@ local function activeMode()
 	return modes[ReplicatedStorage:GetAttribute("ActiveMode") or ""]
 end
 
+local availableModes = ReplicatedStorage:WaitForChild("AvailableModes")
+
+-- a game is only offered if both halves exist: the server can run it and we built a screen
+local function playableModes()
+	local list = {}
+	for _, entry in ipairs(availableModes:GetChildren()) do
+		if modes[entry.Name] then
+			table.insert(list, entry.Name)
+		end
+	end
+	table.sort(list)
+	return list
+end
+
+local function minPlayersFor(id)
+	local entry = availableModes:FindFirstChild(id or "")
+	return entry and entry:GetAttribute("MinPlayers") or 1
+end
+
 remotes.ModeEvent.OnClientEvent:Connect(function(kind, ...)
 	local mode = activeMode()
 	if mode and mode.onEvent then
@@ -85,8 +104,20 @@ local blurbLabel = UiKit.label(lobbyFrame, {
 	TextScaled = true, TextColor3 = UiKit.DIM, Text = "",
 })
 
+-- the host taps this to cycle games, everyone else just reads it
+local modeButton = UiKit.button(lobbyFrame, "", Color3.fromRGB(40, 40, 55),
+	UDim2.new(1, -20, 0.075, 0), UDim2.new(0, 10, 0.22, 0))
+modeButton.Font = Enum.Font.GothamMedium
+
+modeButton.Activated:Connect(function()
+	local list = playableModes()
+	if #list < 2 then return end
+	local i = table.find(list, ReplicatedStorage:GetAttribute("ActiveMode")) or 0
+	remotes.LobbyAction:FireServer("setMode", list[(i % #list) + 1])
+end)
+
 local playersLabel = UiKit.label(lobbyFrame, {
-	Size = UDim2.new(1, -40, 0.45, 0), Position = UDim2.new(0, 20, 0.25, 0),
+	Size = UDim2.new(1, -40, 0.38, 0), Position = UDim2.new(0, 20, 0.31, 0),
 	TextSize = 20, RichText = true, TextWrapped = true,
 	TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
 })
@@ -197,9 +228,22 @@ local function renderLobby(state)
 	blurbLabel.Text = mode and mode.blurb or ""
 
 	local isHost = player.UserId == hostId
+	local canSwitch = isHost and state == "Lobby" and #playableModes() > 1
+	modeButton.Text = ("Game: %s%s"):format(
+		mode and mode.name or "?", canSwitch and "     (tap to change)" or "")
+	modeButton.AutoButtonColor = canSwitch
+	modeButton.Active = canSwitch
+
+	local needed = minPlayersFor(ReplicatedStorage:GetAttribute("ActiveMode"))
+
 	if state == "Lobby" then
-		statusLabel.Text = ("%d/%d ready. Starts when everyone's ready%s"):format(
-			ready, total, isHost and ", or hit Start" or "")
+		if total < needed then
+			statusLabel.Text = ("%s needs %d players, %d here"):format(
+				mode and mode.name or "This game", needed, total)
+		else
+			statusLabel.Text = ("%d/%d ready. Starts when everyone's ready%s"):format(
+				ready, total, isHost and ", or hit Start" or "")
+		end
 	elseif state == "Countdown" then
 		statusLabel.Text = ("Starting in %d..."):format(ReplicatedStorage:GetAttribute("Countdown") or 0)
 	else

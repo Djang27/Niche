@@ -87,9 +87,34 @@ if not activeMode then
 	end
 end
 
+-- Clients build the mode picker from this folder, so it only ever lists games the
+-- server can actually run. Adding a module to Modes/ is all it takes to appear here.
+local availableModes = Instance.new("Folder")
+availableModes.Name = "AvailableModes"
+availableModes.Parent = ReplicatedStorage
+
+local modeOrder = {}
+for id in pairs(modes) do
+	table.insert(modeOrder, id)
+end
+table.sort(modeOrder)
+
+for _, id in ipairs(modeOrder) do
+	local entry = Instance.new("StringValue")
+	entry.Name = id
+	entry.Value = modes[id].name or id
+	entry:SetAttribute("MinPlayers", modes[id].minPlayers or 1)
+	entry.Parent = availableModes
+end
+
+local function setActiveMode(mode)
+	activeMode = mode
+	ReplicatedStorage:SetAttribute("ActiveMode", mode.id)
+end
+
 if activeMode then
-	ReplicatedStorage:SetAttribute("ActiveMode", activeMode.id)
-	print(("[RoundManager] active mode: %s"):format(activeMode.id))
+	setActiveMode(activeMode)
+	print(("[RoundManager] %d mode(s) loaded, active: %s"):format(#modeOrder, activeMode.id))
 else
 	warn("[RoundManager] no playable mode loaded, the lobby will never start a match")
 end
@@ -202,14 +227,22 @@ end)
 
 ---------------------------------------------------------------- lobby actions
 
-LobbyAction.OnServerEvent:Connect(function(player, action)
+LobbyAction.OnServerEvent:Connect(function(player, action, value)
+	local isHost = player.UserId == ReplicatedStorage:GetAttribute("HostUserId")
+
 	if action == "ready" or action == "unready" then
 		if state == "Lobby" or state == "Countdown" then
 			player:SetAttribute("Ready", action == "ready")
 		end
 	elseif action == "start" then
-		if state == "Lobby" and player.UserId == ReplicatedStorage:GetAttribute("HostUserId") then
+		if state == "Lobby" and isHost then
 			forceStart = true
+		end
+	elseif action == "setMode" then
+		-- lobby only: swapping games during the countdown or a match would strand clients
+		-- on a screen the server has stopped talking to
+		if state == "Lobby" and isHost and typeof(value) == "string" and modes[value] then
+			setActiveMode(modes[value])
 		end
 	elseif action == "playAgain" or action == "toLobby" then
 		if state == "Podium" and participants[player] then

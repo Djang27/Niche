@@ -64,10 +64,14 @@ reach the server half. The shell calls `reset()` when a match ends.
 - ReplicatedStorage: `GameState` ("Lobby" | "Countdown" | "InMatch" | "Podium"), `Countdown`, `HostUserId`,
   `ActiveMode` (module name of the mode currently loaded, e.g. "Niche")
 - Each Player: `Ready`, `InMatch`
+- `ReplicatedStorage.AvailableModes`: one StringValue per loadable mode (Name = module name,
+  Value = display name, attribute `MinPlayers`). The client builds the lobby's game picker from
+  this intersected with the modes it has screens for, so nothing is hardcoded per game.
 
 ## Remotes (ReplicatedStorage.Remotes)
 All shell-owned and mode-agnostic. Modes never create their own remotes.
-- RemoteEvent `LobbyAction`: client -> server, actions "ready", "unready", "start", "playAgain", "toLobby"
+- RemoteEvent `LobbyAction`: client -> server, actions "ready", "unready", "start", "playAgain", "toLobby",
+  and "setMode" (second arg is a mode id; host only, lobby only)
 - RemoteEvent `MatchOver`: server -> client, final standings
 - RemoteEvent `ModeEvent`: both directions, first arg is a kind string the active mode defines
 - RemoteFunction `ModeRequest`: client asks the active mode something, first arg is a kind string
@@ -108,10 +112,11 @@ return {
 - Keep tunables as constants at the top of files (timers, rounds, MIN_PLAYERS, etc).
 
 ## Roadmap (rough order)
-Done: answer logging to DataStore; the shell/mode split.
+Done: answer logging to DataStore; the shell/mode split; lobby mode picker.
+The planned games below are provisional - the owner expects to swap them out and add others, so
+nothing should hardcode a specific game outside its own module.
 1. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them
-2. Mode selection in the lobby (host picks), with only Niche in the list
-3. `TextFilter` module wrapping TextService:FilterStringAsync (see Rules to keep)
+2. `TextFilter` module wrapping TextService:FilterStringAsync (see Rules to keep)
 4. Wavelength as the second mode. Built before the related-words game on purpose: asymmetric roles,
    two-phase rounds and slider input stress-test the mode interface hardest, and its scoring is simpler.
 5. Data-driven tiers from real answer frequency
