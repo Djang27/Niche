@@ -1,4 +1,4 @@
--- ModuleScript: put in ServerScriptService, name it "AnswerJudge"
+-- ModuleScript: ServerScriptService > Modes > Niche > AnswerJudge
 
 local PromptData = require(script.Parent.PromptData)
 

@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > AnswerLog
+-- ModuleScript: ServerScriptService > Modes > Niche > AnswerLog
 -- Records what players actually type, per prompt, into a DataStore.
 --
 -- Two things this is for:
@@ -244,8 +244,8 @@ local function sortedPairs(t, limit)
 end
 
 -- Run this from the Studio command bar (Server context) to see what's been collected:
---   require(game.ServerScriptService.AnswerLog).report()
---   require(game.ServerScriptService.AnswerLog).report("africa")
+--   require(game.ServerScriptService.Modes.Niche.AnswerLog).report()
+--   require(game.ServerScriptService.Modes.Niche.AnswerLog).report("africa")
 -- `share` is how often a player who saw the prompt gave that answer, which is the
 -- number tiers should eventually be derived from.
 function AnswerLog.report(filter, topN)

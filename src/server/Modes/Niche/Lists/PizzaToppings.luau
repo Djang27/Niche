@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Lists > PizzaToppings
+-- ModuleScript: ServerScriptService > Modes > Niche > Lists > PizzaToppings
 
 return {
 	noun = "a pizza topping",

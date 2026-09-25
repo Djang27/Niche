@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Lists > Cities
+-- ModuleScript: ServerScriptService > Modes > Niche > Lists > Cities
 
 return {
 	noun = "a city",

@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Lists > Fruits
+-- ModuleScript: ServerScriptService > Modes > Niche > Lists > Fruits
 
 return {
 	noun = "a fruit",

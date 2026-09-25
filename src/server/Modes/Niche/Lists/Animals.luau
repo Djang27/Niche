@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Lists > Animals
+-- ModuleScript: ServerScriptService > Modes > Niche > Lists > Animals
 
 return {
 	noun = "an animal",

@@ -1,6 +1,6 @@
--- ModuleScript: ServerScriptService > PromptData
--- Builds every prompt automatically from the lists in ServerScriptService > Lists.
--- To add a new category, just add a new ModuleScript to the Lists folder.
+-- ModuleScript: ServerScriptService > Modes > Niche > PromptData
+-- Builds every prompt automatically from the modules in the sibling Lists folder.
+-- To add a new category, just add a new ModuleScript to Lists.
 
 local PromptData = {}
 

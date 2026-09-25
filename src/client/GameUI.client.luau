@@ -1,9 +1,15 @@
--- LocalScript: put in StarterPlayer > StarterPlayerScripts
--- Three screens: Lobby, Game, Podium. Which one shows depends on the server's state.
+-- LocalScript: StarterPlayer > StarterPlayerScripts
+-- The shell around every mode's screen: lobby, podium, and which one is showing.
+--
+-- The middle screen belongs to whichever mode the server has active. Each module in
+-- Modes/ exposes { name, blurb, build(parent, api) -> frame, onEvent(kind, ...), reset() }
+-- and the shell just shows or hides the frame build() handed back.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
+
+local UiKit = require(script.Parent:WaitForChild("UiKit"))
 
 local player = Players.LocalPlayer
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -12,105 +18,87 @@ pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 end)
 
-local TIER_COLORS = {
-	Common = "#b0b0b0",
-	Rare = "#4da6ff",
-	SuperRare = "#b366ff",
-	Epic = "#ff9933",
-	Legendary = "#ffd700",
-	Invalid = "#ff4d4d",
-}
-
-local WHITE = Color3.new(1, 1, 1)
-local YELLOW = Color3.fromRGB(255, 210, 80)
-local RED = Color3.fromRGB(255, 90, 90)
-local BLUE = Color3.fromRGB(70, 130, 255)
-local GREEN = Color3.fromRGB(60, 180, 90)
-local GRAY = Color3.fromRGB(70, 70, 90)
-
----------------------------------------------------------------- helpers
-
-local function make(class, props)
-	local inst = Instance.new(class)
-	local parent = props.Parent
-	props.Parent = nil
-	for k, v in pairs(props) do
-		inst[k] = v
-	end
-	inst.Parent = parent
-	return inst
-end
-
-local function escape(s)
-	return (s:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
-end
-
-local function panel(parent)
-	local f = make("Frame", {
-		Size = UDim2.fromScale(0.5, 0.6), Position = UDim2.fromScale(0.25, 0.2),
-		BackgroundColor3 = Color3.fromRGB(25, 25, 35), Visible = false, Parent = parent,
-	})
-	make("UICorner", { CornerRadius = UDim.new(0, 12), Parent = f })
-	return f
-end
-
-local function label(parent, props)
-	props.BackgroundTransparency = 1
-	props.TextColor3 = props.TextColor3 or WHITE
-	props.Font = props.Font or Enum.Font.Gotham
-	props.Parent = parent
-	return make("TextLabel", props)
-end
-
-local function button(parent, text, color, size, pos)
-	local b = make("TextButton", {
-		Size = size, Position = pos, Text = text, TextScaled = true,
-		Font = Enum.Font.GothamBold, TextColor3 = WHITE, BackgroundColor3 = color, Parent = parent,
-	})
-	make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = b })
-	return b
-end
-
 ---------------------------------------------------------------- base
 
-local gui = make("ScreenGui", {
+local gui = UiKit.make("ScreenGui", {
 	Name = "NicheGui", ResetOnSpawn = false, IgnoreGuiInset = true,
 	Parent = player:WaitForChild("PlayerGui"),
 })
 
-make("Frame", {
+UiKit.make("Frame", {
 	Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(15, 15, 22),
 	BorderSizePixel = 0, ZIndex = 0, Parent = gui,
 })
 
+---------------------------------------------------------------- modes
+
+-- what a mode screen is allowed to say to its half of the server
+local api = {
+	send = function(kind, ...)
+		remotes.ModeEvent:FireServer(kind, ...)
+	end,
+	request = function(kind, ...)
+		return remotes.ModeRequest:InvokeServer(kind, ...)
+	end,
+}
+
+local modes = {}
+
+for _, child in ipairs(script.Parent:WaitForChild("Modes"):GetChildren()) do
+	if child:IsA("ModuleScript") then
+		local ok, mode = pcall(require, child)
+		if ok and type(mode) == "table" and type(mode.build) == "function" then
+			local built, frame = pcall(mode.build, gui, api)
+			if built then
+				mode.frame = frame
+				modes[child.Name] = mode
+			else
+				warn(("[GameUI] mode %s failed to build: %s"):format(child.Name, tostring(frame)))
+			end
+		else
+			warn(("[GameUI] couldn't load mode %s: %s"):format(child.Name, tostring(mode)))
+		end
+	end
+end
+
+local function activeMode()
+	return modes[ReplicatedStorage:GetAttribute("ActiveMode") or ""]
+end
+
+remotes.ModeEvent.OnClientEvent:Connect(function(kind, ...)
+	local mode = activeMode()
+	if mode and mode.onEvent then
+		mode.onEvent(kind, ...)
+	end
+end)
+
 ---------------------------------------------------------------- lobby screen
 
-local lobbyFrame = panel(gui)
+local lobbyFrame = UiKit.panel(gui)
 
-label(lobbyFrame, {
+local titleLabel = UiKit.label(lobbyFrame, {
 	Size = UDim2.new(1, -20, 0.14, 0), Position = UDim2.new(0, 10, 0, 10),
 	TextScaled = true, Font = Enum.Font.GothamBlack, Text = "NICHE",
 })
-label(lobbyFrame, {
+local blurbLabel = UiKit.label(lobbyFrame, {
 	Size = UDim2.new(1, -20, 0.06, 0), Position = UDim2.new(0, 10, 0.15, 0),
-	TextScaled = true, TextColor3 = Color3.fromRGB(170, 170, 190),
-	Text = "The rarer your answer, the more points",
+	TextScaled = true, TextColor3 = UiKit.DIM, Text = "",
 })
 
-local playersLabel = label(lobbyFrame, {
+local playersLabel = UiKit.label(lobbyFrame, {
 	Size = UDim2.new(1, -40, 0.45, 0), Position = UDim2.new(0, 20, 0.25, 0),
 	TextSize = 20, RichText = true, TextWrapped = true,
 	TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
 })
 
-local statusLabel = label(lobbyFrame, {
+local statusLabel = UiKit.label(lobbyFrame, {
 	Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.71, 0),
-	TextScaled = true, Font = Enum.Font.GothamMedium, TextColor3 = YELLOW, Text = "",
+	TextScaled = true, Font = Enum.Font.GothamMedium, TextColor3 = UiKit.YELLOW, Text = "",
 })
 
-local readyButton = button(lobbyFrame, "Ready up", GREEN,
+local readyButton = UiKit.button(lobbyFrame, "Ready up", UiKit.GREEN,
 	UDim2.new(0.5, -15, 0.13, 0), UDim2.new(0, 10, 0.82, 0))
-local startButton = button(lobbyFrame, "Start now", BLUE,
+local startButton = UiKit.button(lobbyFrame, "Start now", UiKit.BLUE,
 	UDim2.new(0.5, -15, 0.13, 0), UDim2.new(0.5, 5, 0.82, 0))
 
 readyButton.Activated:Connect(function()
@@ -120,66 +108,29 @@ startButton.Activated:Connect(function()
 	remotes.LobbyAction:FireServer("start")
 end)
 
----------------------------------------------------------------- game screen
-
-local gameFrame = panel(gui)
-
-local promptLabel = label(gameFrame, {
-	Size = UDim2.new(1, -20, 0.18, 0), Position = UDim2.new(0, 10, 0, 10),
-	TextScaled = true, Font = Enum.Font.GothamBold, Text = "Get ready...",
-})
-
-local timerLabel = label(gameFrame, {
-	Size = UDim2.new(1, -20, 0.08, 0), Position = UDim2.new(0, 10, 0.2, 0),
-	TextScaled = true, TextColor3 = YELLOW, Text = "",
-})
-
-local input = make("TextBox", {
-	Size = UDim2.new(0.7, -15, 0.12, 0), Position = UDim2.new(0, 10, 0.31, 0),
-	PlaceholderText = "Your most niche answer...", Text = "", ClearTextOnFocus = false,
-	TextScaled = true, Font = Enum.Font.Gotham, TextColor3 = WHITE,
-	BackgroundColor3 = Color3.fromRGB(45, 45, 60), Parent = gameFrame,
-})
-make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = input })
-
-local submit = button(gameFrame, "Lock in", BLUE,
-	UDim2.new(0.3, -15, 0.12, 0), UDim2.new(0.7, 5, 0.31, 0))
-
-local hintLabel = label(gameFrame, {
-	Size = UDim2.new(1, -20, 0.06, 0), Position = UDim2.new(0, 10, 0.44, 0),
-	TextScaled = true, Font = Enum.Font.GothamMedium,
-	TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = YELLOW, Text = "",
-})
-
-local resultsLabel = label(gameFrame, {
-	Size = UDim2.new(1, -20, 0.46, -10), Position = UDim2.new(0, 10, 0.52, 0),
-	TextWrapped = true, RichText = true, TextSize = 18,
-	TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
-})
-
 ---------------------------------------------------------------- podium screen
 
-local podiumFrame = panel(gui)
+local podiumFrame = UiKit.panel(gui)
 
-label(podiumFrame, {
+UiKit.label(podiumFrame, {
 	Size = UDim2.new(1, -20, 0.14, 0), Position = UDim2.new(0, 10, 0, 10),
 	TextScaled = true, Font = Enum.Font.GothamBlack, Text = "Match over!",
 })
 
-local standingsLabel = label(podiumFrame, {
+local standingsLabel = UiKit.label(podiumFrame, {
 	Size = UDim2.new(1, -40, 0.55, 0), Position = UDim2.new(0, 20, 0.18, 0),
 	TextSize = 22, RichText = true, TextWrapped = true,
 	TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
 })
 
-local playAgainButton = button(podiumFrame, "Play again", GREEN,
+local playAgainButton = UiKit.button(podiumFrame, "Play again", UiKit.GREEN,
 	UDim2.new(0.5, -15, 0.13, 0), UDim2.new(0, 10, 0.82, 0))
-local toLobbyButton = button(podiumFrame, "Back to lobby", GRAY,
+local toLobbyButton = UiKit.button(podiumFrame, "Back to lobby", UiKit.GRAY,
 	UDim2.new(0.5, -15, 0.13, 0), UDim2.new(0.5, 5, 0.82, 0))
 
-local podiumWaitLabel = label(podiumFrame, {
+local podiumWaitLabel = UiKit.label(podiumFrame, {
 	Size = UDim2.new(1, -20, 0.08, 0), Position = UDim2.new(0, 10, 0.84, 0),
-	TextScaled = true, Font = Enum.Font.GothamMedium, TextColor3 = YELLOW, Text = "", Visible = false,
+	TextScaled = true, Font = Enum.Font.GothamMedium, TextColor3 = UiKit.YELLOW, Text = "", Visible = false,
 })
 
 local function podiumChoice(action, message)
@@ -197,130 +148,22 @@ toLobbyButton.Activated:Connect(function()
 	podiumChoice("toLobby", "Heading back to the lobby...")
 end)
 
----------------------------------------------------------------- answering
-
-local locked = true
-local checking = false
-local roundId = 0
-local pendingSuggestion = nil
-local suggestionText = nil
-
-local function setHint(text, color)
-	hintLabel.Text = text
-	hintLabel.TextColor3 = color or YELLOW
-end
-
-local function send(canonical, display)
-	locked = true
-	pendingSuggestion = nil
-	input.TextEditable = false
-	input.Text = display
-	submit.Text = "Locked!"
-	setHint("")
-	remotes.SubmitAnswer:FireServer(canonical)
-end
-
-local function lockIn()
-	if locked or checking or input.Text == "" then return end
-
-	if pendingSuggestion then
-		send(pendingSuggestion, suggestionText)
-		return
-	end
-
-	checking = true
-	local ok, status, canonical, display = pcall(function()
-		return remotes.CheckAnswer:InvokeServer(input.Text)
-	end)
-	checking = false
-	if not ok or locked then return end
-
-	if status == "valid" then
-		send(canonical, display)
-	elseif status == "suggest" then
-		input.Text = display
-		pendingSuggestion = canonical
-		suggestionText = display
-		setHint(("Did you mean %s? Press Enter to confirm"):format(display), YELLOW)
-		input:CaptureFocus()
-	elseif status == "invalid" then
-		setHint("Not an answer, try again", RED)
-		input:CaptureFocus()
-	elseif status == "slow" then
-		setHint("Slow down a second", RED)
-		input:CaptureFocus()
-	end
-end
-
-input:GetPropertyChangedSignal("Text"):Connect(function()
-	if pendingSuggestion and input.Text ~= suggestionText then
-		pendingSuggestion = nil
-		setHint("")
-	elseif hintLabel.TextColor3 == RED then
-		setHint("")
-	end
-end)
-
-submit.Activated:Connect(lockIn)
-input.FocusLost:Connect(function(enterPressed)
-	if enterPressed then lockIn() end
-end)
-
-remotes.NewPrompt.OnClientEvent:Connect(function(text, seconds, round, total)
-	roundId += 1
-	local myRound = roundId
-
-	locked = false
-	pendingSuggestion = nil
-	input.Text = ""
-	input.TextEditable = true
-	submit.Text = "Lock in"
-	setHint("")
-	promptLabel.Text = text
-	resultsLabel.Text = ("Round %d / %d"):format(round, total)
-
-	task.spawn(function()
-		for t = seconds, 0, -1 do
-			if roundId ~= myRound then return end
-			timerLabel.Text = t .. "s"
-			task.wait(1)
-		end
-	end)
-end)
-
-remotes.RoundResults.OnClientEvent:Connect(function(results)
-	locked = true
-	pendingSuggestion = nil
-	input.TextEditable = false
-	timerLabel.Text = ""
-	setHint("")
-
-	local lines = {}
-	for _, r in ipairs(results) do
-		table.insert(lines, ('%s: "%s"  <font color="%s">%s +%d</font>  (total %d)'):format(
-			escape(r.name), escape(r.answer), TIER_COLORS[r.tier] or "#ffffff", r.tier, r.points, r.total
-		))
-	end
-	resultsLabel.Text = #lines > 0 and table.concat(lines, "\n") or "Nobody answered 💀"
-end)
-
 remotes.MatchOver.OnClientEvent:Connect(function(standings)
 	local medals = { "🥇", "🥈", "🥉" }
 	local lines = {}
 	for i, s in ipairs(standings) do
-		table.insert(lines, ("%s %d. %s  <b>%d pts</b>"):format(medals[i] or "  ", i, escape(s.name), s.score))
+		table.insert(lines, ("%s %d. %s  <b>%d pts</b>"):format(
+			medals[i] or "  ", i, UiKit.escape(s.name), s.score))
 	end
 	standingsLabel.Text = table.concat(lines, "\n")
 	playAgainButton.Visible = true
 	toLobbyButton.Visible = true
 	podiumWaitLabel.Visible = false
 
-	-- reset the game screen for next time
-	roundId += 1
-	promptLabel.Text = "Get ready..."
-	resultsLabel.Text = ""
-	timerLabel.Text = ""
-	input.Text = ""
+	local mode = activeMode()
+	if mode and mode.reset then
+		mode.reset()
+	end
 end)
 
 ---------------------------------------------------------------- screen switching
@@ -345,9 +188,13 @@ local function renderLobby(state)
 				or '<font color="#b0b0b0">not ready</font>'
 		end
 		local crown = p.UserId == hostId and " 👑" or ""
-		table.insert(lines, ("%s%s   %s"):format(escape(p.DisplayName), crown, status))
+		table.insert(lines, ("%s%s   %s"):format(UiKit.escape(p.DisplayName), crown, status))
 	end
 	playersLabel.Text = table.concat(lines, "\n")
+
+	local mode = activeMode()
+	titleLabel.Text = mode and mode.name:upper() or "NICHE"
+	blurbLabel.Text = mode and mode.blurb or ""
 
 	local isHost = player.UserId == hostId
 	if state == "Lobby" then
@@ -361,13 +208,14 @@ local function renderLobby(state)
 
 	readyButton.Visible = not matchRunning
 	readyButton.Text = player:GetAttribute("Ready") and "Unready" or "Ready up"
-	readyButton.BackgroundColor3 = player:GetAttribute("Ready") and GRAY or GREEN
+	readyButton.BackgroundColor3 = player:GetAttribute("Ready") and UiKit.GRAY or UiKit.GREEN
 	startButton.Visible = isHost and state == "Lobby"
 end
 
 local function render()
 	local state = ReplicatedStorage:GetAttribute("GameState") or "Lobby"
 	local inMatch = player:GetAttribute("InMatch")
+	local mode = activeMode()
 
 	local screen = "lobby"
 	if inMatch and state == "InMatch" then
@@ -377,8 +225,14 @@ local function render()
 	end
 
 	lobbyFrame.Visible = screen == "lobby"
-	gameFrame.Visible = screen == "game"
 	podiumFrame.Visible = screen == "podium"
+
+	-- only the active mode's screen is ever visible
+	for _, m in pairs(modes) do
+		if m.frame then
+			m.frame.Visible = (screen == "game" and m == mode)
+		end
+	end
 
 	if screen == "lobby" then
 		renderLobby(state)
