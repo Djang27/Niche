@@ -123,19 +123,18 @@ return {
 - Keep tunables as constants at the top of files (timers, rounds, MIN_PLAYERS, etc).
 
 ## Roadmap (rough order)
-Done: answer logging to DataStore; the shell/mode split; lobby mode picker; `Shared/TextFilter.luau`.
+Done: answer logging to DataStore; the shell/mode split; `Shared/TextFilter.luau`; the
+menu -> modes -> lobby screens (which replaced the lobby's mode-cycling row).
 The planned games below are provisional - the owner expects to swap them out and add others, so
 nothing should hardcode a specific game outside its own module.
 1. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them
 2. A second mode. Wavelength was the pick: asymmetric roles, two-phase rounds and slider input
    stress-test the mode interface hardest, and its scoring is simpler than the alternatives.
-3. Game-selection menu screen (Jackbox-style: pick a game, then reach its lobby). Deferred 2026-09-25 -
-   the one-line `Game: <name>` row is fine for now. Raise it once a second mode exists, which is the
-   point the row stops being enough.
-4. Data-driven tiers from real answer frequency
-5. "Say words related to a topic" mode. Blocked on a design answer first: how to match free-form words
+   Building it also turns the first greyed-out slot on the modes screen live, with no UI work.
+3. Data-driven tiers from real answer frequency
+4. "Say words related to a topic" mode. Blocked on a design answer first: how to match free-form words
    across players with no canonical list ("dog" vs "dogs" vs "Dog").
-6. Ranked-lite: rating per player (pairwise Elo scaled by opponent count), ranks in lobby, global leaderboard.
+5. Ranked-lite: rating per player (pairwise Elo scaled by opponent count), ranks in lobby, global leaderboard.
    Private servers and matches under 3 players do not count.
-7. Real ranked queue (MemoryStoreService + TeleportService) only once concurrent players can support it
-8. Cosmetic passes: Legendary reveal effects, Party Host pass (custom lobby settings, non-ranked only)
+6. Real ranked queue (MemoryStoreService + TeleportService) only once concurrent players can support it
+7. Cosmetic passes: Legendary reveal effects, Party Host pass (custom lobby settings, non-ranked only)
