@@ -142,13 +142,13 @@ return {
 
 ## Roadmap (rough order)
 Done: answer logging to DataStore; the shell/mode split; `Shared/TextFilter.luau`; the
-menu -> modes -> lobby screens (which replaced the lobby's mode-cycling row).
+menu -> modes -> lobby screens; Wavelength Solo, with category picks and the mode-group submenu.
 The planned games below are provisional - the owner expects to swap them out and add others, so
 nothing should hardcode a specific game outside its own module.
-1. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them
-2. A second mode. Wavelength was the pick: asymmetric roles, two-phase rounds and slider input
-   stress-test the mode interface hardest, and its scoring is simpler than the alternatives.
-   Building it also turns the first greyed-out slot on the modes screen live, with no UI work.
+1. Wavelength Teams. Same round core as Solo but scored within a team, 4+ players, whichever team
+   scores more wins. It slots into the existing Wavelength submenu beside Solo with no UI work, so
+   the shared round logic should come out of `Modes/WavelengthSolo` into `Shared/` first.
+2. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them
 3. Data-driven tiers from real answer frequency
 4. "Say words related to a topic" mode. Blocked on a design answer first: how to match free-form words
    across players with no canonical list ("dog" vs "dogs" vs "Dog").
