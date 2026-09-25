@@ -104,6 +104,7 @@ for _, id in ipairs(modeOrder) do
 	entry.Name = id
 	entry.Value = modes[id].name or id
 	entry:SetAttribute("MinPlayers", modes[id].minPlayers or 1)
+	entry:SetAttribute("MaxPlayers", modes[id].maxPlayers or 0) -- 0 means no limit
 	entry.Parent = availableModes
 end
 
@@ -293,7 +294,12 @@ local function countdownHolds()
 	if not activeMode then
 		return false
 	end
-	if #lobbyPlayers() < math.max(MIN_PLAYERS, activeMode.minPlayers or 1) then
+	local count = #lobbyPlayers()
+	if count < math.max(MIN_PLAYERS, activeMode.minPlayers or 1) then
+		return false
+	end
+	-- a capped mode refuses to start rather than quietly leaving someone out
+	if activeMode.maxPlayers and count > activeMode.maxPlayers then
 		return false
 	end
 	return forceStart or allReady()

@@ -40,6 +40,11 @@ src/server/ (-> ServerScriptService)
 - `Shared/TextFilter.luau`: TextService wrapper for any player-typed text other players will see.
   `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
+- `Shared/Spectrums.luau`: Wavelength dial content, pairs of opposed labels, plus `pick(n)` with
+  no-repeat memory. Server only, like the answer lists.
+- `Modes/WavelengthSolo/init.luau`: each round pairs one clue giver with one guesser and both score
+  by how close the guess lands; the pair rotates each round and everyone else watches. The target
+  goes only to the clue giver via `ctx.sendTo`. Clues are filtered. Capped at 4 players.
 
 src/client/ (-> StarterPlayer.StarterPlayerScripts)
 - `GameUI.client.luau`: the shell's UI. Screens are menu -> modes -> lobby -> the active mode's own
@@ -50,20 +55,28 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   a real module with that name exists.
 - `UiKit.luau`: shared make/panel/label/button/escape helpers and the colour palette.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
+- `Modes/WavelengthSolo.luau`: the dial screen. Drag the marker along the bar, clue box for the clue
+  giver, reveal shows the target and guess markers together.
 
 ## Mode interface
 Adding a game = one server module + one client module. No shell changes.
 
 Server, `src/server/Modes/<Name>/init.luau` returns:
-  { name, blurb, minPlayers, rounds,
+  { name, blurb, minPlayers, maxPlayers, rounds,
     beginMatch(ctx), runRound(ctx, round), endMatch(), playerLeft(ctx, player),
     onEvent(ctx, player, kind, ...), onRequest(ctx, player, kind, ...) }
 Only `runRound` is required. `ctx` gives the mode: `players()`, `isPlaying(p)`, `send(kind, ...)`,
 `sendTo(player, kind, ...)` (for per-player secrets, e.g. Wavelength's target), `award(player, points)`,
 `scoreOf(player)`, `waitUntil(seconds, predicate)`, and `rounds` (a mode may shorten it in `beginMatch`).
 
+`maxPlayers` caps a mode: the countdown refuses to start above it rather than quietly leaving
+someone out, and the lobby says so. Omit it for no cap.
+
 Client, `src/client/Modes/<Name>.luau` returns:
-  { name, blurb, build(parent, api) -> frame, onEvent(kind, ...), reset() }
+  { name, blurb, group, variant, build(parent, api) -> frame, onEvent(kind, ...), reset() }
+`group` and `variant` are optional: modes sharing a `group` collapse into one button on the modes
+screen that opens a submenu of their `variant` names (Wavelength -> Solo / Teams). A mode with no
+group gets its own grid button.
 `build` returns the frame the shell shows/hides; `api.send(kind, ...)` and `api.request(kind, ...)`
 reach the server half. The shell calls `reset()` when a match ends.
 

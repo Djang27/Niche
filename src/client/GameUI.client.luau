@@ -104,6 +104,13 @@ local function minPlayersFor(id)
 	return entry and entry:GetAttribute("MinPlayers") or 1
 end
 
+-- 0 means the mode has no cap
+local function maxPlayersFor(id)
+	local entry = availableModes:FindFirstChild(id or "")
+	local max = entry and entry:GetAttribute("MaxPlayers") or 0
+	return max > 0 and max or nil
+end
+
 remotes.ModeEvent.OnClientEvent:Connect(function(kind, ...)
 	local mode = activeMode()
 	if mode and mode.onEvent then
@@ -164,18 +171,84 @@ local GRID = {
 	UDim2.new(0.5, 5, 0.46, 0),
 }
 
+-- Modes that declare the same `group` collapse into one grid button which opens a
+-- submenu of its variants. A mode with no group gets its own button as before.
 local function modeEntries()
 	local entries = {}
+	local byGroup = {}
+	local taken = {}
+
 	for _, id in ipairs(playableModes()) do
-		table.insert(entries, { id = id, label = modes[id].name or id })
+		local group = modes[id].group
+		if group then
+			if not byGroup[group] then
+				byGroup[group] = { kind = "group", label = group, members = {} }
+				table.insert(entries, byGroup[group])
+				taken[group] = true
+			end
+			table.insert(byGroup[group].members, id)
+		else
+			table.insert(entries, { kind = "mode", id = id, label = modes[id].name or id })
+			taken[modes[id].name or id] = true
+			taken[id] = true
+		end
 	end
+
+	-- a planned name drops off once something real claims it, group or single mode
 	for _, name in ipairs(PLANNED) do
-		if not modes[name] then
-			table.insert(entries, { id = nil, label = name })
+		if not taken[name] then
+			table.insert(entries, { kind = "soon", label = name })
 		end
 	end
 	return entries
 end
+
+---------------------------------------------------------------- variant submenu
+
+local groupFrame = UiKit.panel(gui)
+
+local groupTitle = UiKit.label(groupFrame, {
+	Size = UDim2.new(1, -20, 0.12, 0), Position = UDim2.new(0, 10, 0.04, 0),
+	TextScaled = true, Font = Enum.Font.GothamBold, Text = "",
+})
+local groupBlurb = UiKit.label(groupFrame, {
+	Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.17, 0),
+	TextScaled = true, TextColor3 = UiKit.DIM, Text = "Pick a format",
+})
+
+local groupButtons = {}
+
+local function openGroup(entry)
+	for _, old in ipairs(groupButtons) do
+		old:Destroy()
+	end
+	table.clear(groupButtons)
+
+	groupTitle.Text = entry.label
+
+	for i, id in ipairs(entry.members) do
+		if not GRID[i] then break end
+		local mode = modes[id]
+		local b = UiKit.button(groupFrame, mode.variant or mode.name or id, UiKit.BLUE,
+			UDim2.new(0.5, -15, 0.2, 0), GRID[i])
+		b.Activated:Connect(function()
+			-- the server ignores this unless we're the host, which is the intended gate
+			remotes.LobbyAction:FireServer("setMode", id)
+			goTo("lobby")
+		end)
+		table.insert(groupButtons, b)
+	end
+
+	goTo("group")
+end
+
+local groupBackButton = UiKit.button(groupFrame, "Back", UiKit.GRAY,
+	UDim2.new(1, -20, 0.13, 0), UDim2.new(0, 10, 0.82, 0))
+groupBackButton.Activated:Connect(function()
+	goTo("modes")
+end)
+
+---------------------------------------------------------------- the grid itself
 
 local modeButtons = {}
 
@@ -188,7 +261,7 @@ local function rebuildModeGrid()
 	for i, entry in ipairs(modeEntries()) do
 		if not GRID[i] then break end
 
-		local playable = entry.id ~= nil
+		local playable = entry.kind ~= "soon"
 		local b = UiKit.button(modesFrame, entry.label,
 			playable and UiKit.BLUE or Color3.fromRGB(38, 38, 50),
 			UDim2.new(0.5, -15, 0.2, 0), GRID[i])
@@ -198,14 +271,15 @@ local function rebuildModeGrid()
 		end
 
 		b.Activated:Connect(function()
-			if not playable then
-				modesHint.Text = ("%s isn't built yet"):format(entry.label)
-				return
-			end
 			modesHint.Text = ""
-			-- the server ignores this unless we're the host, which is the intended gate
-			remotes.LobbyAction:FireServer("setMode", entry.id)
-			goTo("lobby")
+			if entry.kind == "soon" then
+				modesHint.Text = ("%s isn't built yet"):format(entry.label)
+			elseif entry.kind == "group" then
+				openGroup(entry)
+			else
+				remotes.LobbyAction:FireServer("setMode", entry.id)
+				goTo("lobby")
+			end
 		end)
 
 		table.insert(modeButtons, b)
@@ -363,10 +437,15 @@ local function renderLobby(state)
 	local isHost = player.UserId == hostId
 	local needed = minPlayersFor(ReplicatedStorage:GetAttribute("ActiveMode"))
 
+	local cap = maxPlayersFor(ReplicatedStorage:GetAttribute("ActiveMode"))
+
 	if state == "Lobby" then
 		if total < needed then
 			statusLabel.Text = ("%s needs %d players, %d here"):format(
 				mode and mode.name or "This game", needed, total)
+		elseif cap and total > cap then
+			statusLabel.Text = ("%s takes at most %d players, %d here"):format(
+				mode and mode.name or "This game", cap, total)
 		else
 			statusLabel.Text = ("%d/%d ready. Starts when everyone's ready%s"):format(
 				ready, total, isHost and ", or hit Start" or "")
@@ -402,6 +481,7 @@ local function render()
 
 	menuFrame.Visible = screen == "menu"
 	modesFrame.Visible = screen == "modes"
+	groupFrame.Visible = screen == "group"
 	lobbyFrame.Visible = screen == "lobby"
 	podiumFrame.Visible = screen == "podium"
 
