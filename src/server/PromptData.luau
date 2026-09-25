@@ -36,6 +36,7 @@ local function addPrompt(listId, kind, text, items, tierTag)
 		end
 	end
 	table.insert(PromptData.Prompts, {
+		id = listId .. ":" .. text, -- stable across restarts, used as the answer-log key
 		text = text,
 		answers = answers,
 		aliases = aliases,

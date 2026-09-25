@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PromptData = require(script.Parent.PromptData)
 local AnswerJudge = require(script.Parent.AnswerJudge)
+local AnswerLog = require(script.Parent.AnswerLog)
 
 Players.CharacterAutoLoads = false -- menu-style game, no characters
 
@@ -152,7 +153,15 @@ CheckAnswer.OnServerInvoke = function(player, answer)
 	end
 	lastCheck[player] = now
 
-	return AnswerJudge.check(currentPrompt, answer)
+	local status, canonical, display = AnswerJudge.check(currentPrompt, answer)
+	-- a rejection usually means the list is missing an answer, a correction means
+	-- it's missing an alias. Both are worth knowing about.
+	if status == "invalid" then
+		AnswerLog.logMiss(currentPrompt, answer)
+	elseif status == "suggest" then
+		AnswerLog.logNearMiss(currentPrompt, answer, canonical)
+	end
+	return status, canonical, display
 end
 
 SubmitAnswer.OnServerEvent:Connect(function(player, answer)
@@ -176,6 +185,14 @@ local function scoreRound(prompt)
 			end
 		end
 	end
+
+	local submitted = {}
+	for _, j in pairs(judged) do
+		if j.answer then
+			table.insert(submitted, j.answer)
+		end
+	end
+	AnswerLog.logRound(prompt, #participantList(), submitted)
 
 	local results = {}
 	for player, j in pairs(judged) do
