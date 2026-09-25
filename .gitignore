@@ -1,0 +1,6 @@
+# Studio place files (the code lives in src/, the place itself lives on Roblox)
+*.rbxl
+*.rbxlx
+*.lock
+sourcemap.json
+.DS_Store
