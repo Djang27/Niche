@@ -61,12 +61,16 @@ src/server/ (-> ServerScriptService)
   alone is sent it via `ctx.sendTo`, picks one of 3 random categories, and writes a clue, which is
   filtered before anyone else sees it. Guessers drag a marker; points come from how close it lands.
   Picking the category is folded into the clue step so rounds don't grow a phase.
-- `Modes/WavelengthSolo/init.luau`: competitive rotating pairs - one clue giver, one guesser, both
-  scoring the same, everyone else watching. A ~20-line config over `newPairMode`. 3-4 players; the
-  minimum is 3 *on purpose*, because at 2 the pair is the same two people every round scoring
-  identically, so the match could only ever end in a tie. Do not "fix" that back to 2.
-- `Modes/WavelengthCoop/init.luau`: the same rotating-pair round, but one score for the whole room and
-  a `matchSummary` reporting the total instead of a winner. 2-4 players, and the honest home for two.
+- `Modes/WavelengthSolo/init.luau`: one clue giver per round and **everyone else guessing** - there is
+  no spectator role. Guessers score their own accuracy; the clue giver is paid `floor` of the
+  guessers' average, so a clue only one person reads is worth less than one everybody gets. The giver
+  rotates so each player takes the job once, which is why the round count comes from the roster
+  (`rotations = 1`, so 3-4 rounds). A ~20-line config over `newRotatingMode`. 3-4 players; the minimum
+  is 3 *on purpose*, because at 2 there is a single guesser, the giver's "average" is just that one
+  score, and both players finish level every round. Do not "fix" that back to 2.
+- `Modes/WavelengthCoop/init.luau`: the same rotating round, but one score for the whole room and
+  a `matchSummary` reporting the total instead of a winner. `rotations = 2` so a pair doesn't get a
+  two-round match. 2-4 players, and the honest home for two.
 - `Modes/WavelengthTeams/init.luau`: two teams play the same dial at once, each with its own hidden
   target and its own clue giver. **Every clue goes out via `ctx.sendTo`, never `ctx.send`** - one
   stray broadcast during the clue or guess phase hands the other team the answer, so the reveal is the
