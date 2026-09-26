@@ -40,6 +40,9 @@ src/server/ (-> ServerScriptService)
 - `Shared/TextFilter.luau`: TextService wrapper for any player-typed text other players will see.
   `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
+- `Shared/Wavelength.luau`: rules both Wavelength modes agree on - `score(distance)` proximity bands,
+  `newTarget()`, `cleanClue(text, maxLen)`, `orderedPlayers(ctx)`. Deliberately not a shared round
+  loop: the two modes' flows genuinely differ.
 - `Shared/Spectrums.luau`: Wavelength dial content, pairs of opposed labels, plus `pick(n)` with
   no-repeat memory. Server only, like the answer lists.
 - `Shared/Categories.luau`: broad subject areas (Food, Sports, Movies...) plus `pick(n)`. Three are
@@ -62,6 +65,8 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
 - `Modes/WavelengthSolo.luau`: the dial screen. Drag the marker along the bar, clue box for the clue
   giver, reveal shows the target and guess markers together.
+- `Modes/WavelengthTeams.luau`: the same dial, but you only ever see your own team's clue. The other
+  team's target, clue and guesses appear only at the reveal, colour coded per team.
 
 ## Mode interface
 Adding a game = one server module + one client module. No shell changes.

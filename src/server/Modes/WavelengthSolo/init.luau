@@ -11,6 +11,7 @@
 -- The target position is the whole game, so it goes ONLY to the clue giver via
 -- ctx.sendTo. Everyone else learns it at the reveal.
 
+local Wavelength = require(script.Parent.Parent.Shared.Wavelength)
 local Spectrums = require(script.Parent.Parent.Shared.Spectrums)
 local Categories = require(script.Parent.Parent.Shared.Categories)
 local TextFilter = require(script.Parent.Parent.Shared.TextFilter)
@@ -30,13 +31,6 @@ local REVEAL_TIME = 7
 local MAX_CLUE_LEN = 40
 local CATEGORY_CHOICES = 3
 
--- how close the guess has to be, and what it pays
-local BANDS = {
-	{ within = 0.04, points = 4, label = "Dead on!" },
-	{ within = 0.10, points = 3, label = "So close" },
-	{ within = 0.18, points = 2, label = "Close enough" },
-}
-
 -- per-match state
 local spectrums = {}
 local currentSpectrum = nil
@@ -50,25 +44,8 @@ local guess = nil
 
 ---------------------------------------------------------------- helpers
 
-local function score(distance)
-	for _, band in ipairs(BANDS) do
-		if distance <= band.within then
-			return band.points, band.label
-		end
-	end
-	return 0, "Way off"
-end
-
--- ctx.players() comes out of a hash table, so the order is not stable between calls.
--- Sorting keeps the pair rotation predictable instead of random each round.
-local function orderedPlayers(ctx)
-	local list = ctx.players()
-	table.sort(list, function(a, b) return a.UserId < b.UserId end)
-	return list
-end
-
 local function pickPair(ctx, round)
-	local list = orderedPlayers(ctx)
+	local list = Wavelength.orderedPlayers(ctx)
 	if #list < 2 then
 		return nil, nil
 	end
@@ -95,8 +72,7 @@ function WavelengthSolo.runRound(ctx, round)
 	hinter, guesser = pickPair(ctx, round)
 	if not hinter or not guesser then return end -- too few players left
 
-	-- keep off the very ends, where a clue is barely a puzzle
-	target = 0.08 + math.random() * 0.84
+	target = Wavelength.newTarget()
 	clue, guess, chosenCategory = nil, nil, nil
 	categoryOptions = Categories.pick(CATEGORY_CHOICES)
 
@@ -136,7 +112,7 @@ function WavelengthSolo.runRound(ctx, round)
 
 	local points, label = 0, "No guess"
 	if guess then
-		points, label = score(math.abs(guess - target))
+		points, label = Wavelength.score(math.abs(guess - target))
 	end
 	if points > 0 then
 		ctx.award(hinter, points)
@@ -171,9 +147,8 @@ function WavelengthSolo.onEvent(_, player, kind, a, b)
 	if kind == "clue" then
 		if phase ~= "clue" or player ~= hinter or clue then return end
 		if typeof(a) ~= "number" or not categoryOptions[a] then return end
-		if typeof(b) ~= "string" then return end
-		local text = b:gsub("^%s+", ""):gsub("%s+$", "")
-		if text == "" or #text > MAX_CLUE_LEN then return end
+		local text = Wavelength.cleanClue(b, MAX_CLUE_LEN)
+		if not text then return end
 		chosenCategory = categoryOptions[a]
 		clue = text
 	elseif kind == "guess" then
