@@ -367,7 +367,18 @@ local function runMatch()
 		end
 	end
 	table.sort(standings, function(a, b) return a.score > b.score end)
-	fireParticipants(MatchOver, standings)
+
+	-- a mode may add one line to the podium: which team won, a co-op total, whatever
+	-- the per-player standings can't express on their own
+	local summary = nil
+	if mode.matchSummary then
+		local ok, text = pcall(mode.matchSummary, ctx)
+		if ok and typeof(text) == "string" then
+			summary = text
+		end
+	end
+
+	fireParticipants(MatchOver, standings, summary)
 	return true
 end
 

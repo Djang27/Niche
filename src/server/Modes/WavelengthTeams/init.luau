@@ -204,6 +204,16 @@ function WavelengthTeams.runRound(ctx, round)
 	task.wait(REVEAL_TIME)
 end
 
+-- the per-player standings can't say which team won, so the podium gets a line
+function WavelengthTeams.matchSummary()
+	if teamScore[1] > teamScore[2] then
+		return ("%s wins %d - %d"):format(TEAM_NAMES[1], teamScore[1], teamScore[2])
+	elseif teamScore[2] > teamScore[1] then
+		return ("%s wins %d - %d"):format(TEAM_NAMES[2], teamScore[2], teamScore[1])
+	end
+	return ("A draw, %d apiece"):format(teamScore[1])
+end
+
 function WavelengthTeams.endMatch()
 	phase = nil
 	targets, givers, options, chosen, clues, guesses = {}, {}, {}, {}, {}, {}

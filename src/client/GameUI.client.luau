@@ -353,9 +353,15 @@ UiKit.label(podiumFrame, {
 })
 
 local standingsLabel = UiKit.label(podiumFrame, {
-	Size = UDim2.new(1, -40, 0.55, 0), Position = UDim2.new(0, 20, 0.18, 0),
+	Size = UDim2.new(1, -40, 0.52, 0), Position = UDim2.new(0, 20, 0.18, 0),
 	TextSize = 22, RichText = true, TextWrapped = true,
 	TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
+})
+
+-- whatever the mode wanted to say that per-player standings couldn't
+local summaryLabel = UiKit.label(podiumFrame, {
+	Size = UDim2.new(1, -20, 0.08, 0), Position = UDim2.new(0, 10, 0.72, 0),
+	TextScaled = true, Font = Enum.Font.GothamBold, TextColor3 = UiKit.YELLOW, Text = "",
 })
 
 local playAgainButton = UiKit.button(podiumFrame, "Play again", UiKit.GREEN,
@@ -383,7 +389,7 @@ toLobbyButton.Activated:Connect(function()
 	podiumChoice("toLobby", "Heading back to the lobby...")
 end)
 
-remotes.MatchOver.OnClientEvent:Connect(function(standings)
+remotes.MatchOver.OnClientEvent:Connect(function(standings, summary)
 	local medals = { "🥇", "🥈", "🥉" }
 	local lines = {}
 	for i, s in ipairs(standings) do
@@ -391,6 +397,7 @@ remotes.MatchOver.OnClientEvent:Connect(function(standings)
 			medals[i] or "  ", i, UiKit.escape(s.name), s.score))
 	end
 	standingsLabel.Text = table.concat(lines, "\n")
+	summaryLabel.Text = summary or ""
 	playAgainButton.Visible = true
 	toLobbyButton.Visible = true
 	podiumWaitLabel.Visible = false

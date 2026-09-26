@@ -74,7 +74,9 @@ Adding a game = one server module + one client module. No shell changes.
 Server, `src/server/Modes/<Name>/init.luau` returns:
   { name, blurb, minPlayers, maxPlayers, rounds,
     beginMatch(ctx), runRound(ctx, round), endMatch(), playerLeft(ctx, player),
-    onEvent(ctx, player, kind, ...), onRequest(ctx, player, kind, ...) }
+    matchSummary(ctx) -> string, onEvent(ctx, player, kind, ...), onRequest(ctx, player, kind, ...) }
+`matchSummary` is optional and adds one line to the podium for whatever the per-player standings
+can't express - which team won, a co-op total. Return nil or omit it for a normal ranked podium.
 Only `runRound` is required. `ctx` gives the mode: `players()`, `isPlaying(p)`, `send(kind, ...)`,
 `sendTo(player, kind, ...)` (for per-player secrets, e.g. Wavelength's target), `award(player, points)`,
 `scoreOf(player)`, `waitUntil(seconds, predicate)`, and `rounds` (a mode may shorten it in `beginMatch`).
