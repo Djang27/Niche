@@ -218,6 +218,10 @@ end
 function WavelengthTeams.endMatch()
 	phase = nil
 	targets, givers, options, chosen, clues, guesses = {}, {}, {}, {}, {}, {}
+	-- teamOf holds Player references, and playerLeft only fires for the ACTIVE mode. If the
+	-- host switches away from Teams and someone then leaves, their entry would sit here
+	-- pinning the instance until the next Teams match overwrote it.
+	teamOf = {}
 end
 
 function WavelengthTeams.playerLeft(_, player)

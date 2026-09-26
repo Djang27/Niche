@@ -64,8 +64,17 @@ local function exactMatch(prompt, answer)
 	return nil
 end
 
--- every accepted spelling paired with the answer it points to
+-- Every accepted spelling paired with the answer it points to, built once per prompt and
+-- then cached on it. This runs for every answer that isn't an exact match, and the bigger
+-- lists have a couple of hundred entries, so rebuilding it each time meant allocating a
+-- table per answer on the hottest path in the game.
+-- Prompts are built at startup and never mutated, so the cache is safe for the life of
+-- the server.
 local function allSpellings(prompt)
+	if prompt.spellings then
+		return prompt.spellings
+	end
+
 	local list = {}
 	for ans in pairs(prompt.answers) do
 		table.insert(list, { ans, ans })
@@ -75,6 +84,8 @@ local function allSpellings(prompt)
 			table.insert(list, { alias, canon })
 		end
 	end
+
+	prompt.spellings = list
 	return list
 end
 
