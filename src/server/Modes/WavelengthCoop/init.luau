@@ -1,18 +1,18 @@
 -- ModuleScript: ServerScriptService > Modes > WavelengthCoop
 --
--- The same rotating-pair round as Solo, but there is no opponent: every point goes into
--- one score for the whole room, and the podium reports the total instead of a winner.
+-- The same rotating round as Solo - one clue giver, everyone else guessing - but there is
+-- no opponent: every point goes into one score for the whole room, and the podium reports
+-- the total instead of a winner.
 --
--- This is the honest home for two players. In Solo a pair of two would be the same two
--- people every round scoring identically, which can only tie; here that is the point.
+-- Two rotations rather than Solo's one, so a pair doesn't get a two-round match.
 
 local Wavelength = require(script.Parent.Parent.Shared.Wavelength)
 
-return Wavelength.newPairMode({
+return Wavelength.newRotatingMode({
 	name = "Wavelength Co-op",
 	blurb = "One score for the room, beat your best",
 	minPlayers = 2,
 	maxPlayers = 4,
-	rounds = 6,
+	rotations = 2, -- 4 to 8 rounds depending on the roster
 	shared = true,
 })

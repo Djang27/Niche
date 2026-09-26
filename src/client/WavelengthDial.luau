@@ -1,7 +1,7 @@
 -- ModuleScript: StarterPlayerScripts > WavelengthDial
--- The dial screen shared by Wavelength Solo and Co-op. They render the identical round
--- and differ only in how the reveal is worded, so `new(config)` builds one per mode with
--- its own widgets and its own state.
+-- The dial screen shared by Wavelength Solo and Co-op. One player writes a clue, everyone
+-- else guesses, so there is no spectator role here - you are either the clue giver or a
+-- guesser. `new(config)` builds one screen per mode, each with its own widgets and state.
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -20,11 +20,12 @@ function WavelengthDial.new(config)
 	local frame, roundLabel, roleLabel, leftLabel, rightLabel
 	local bar, marker, targetMarker, clueBox, submitButton, statusLabel, resultLabel
 	local categoryButtons = {}
+	local revealMarkers = {}
 
 	local myGuess = 0.5
 	local dragging = false
 	local canDrag = false
-	local role = "watch" -- "hint" | "guess" | "watch"
+	local isGiver = false
 	local submitted = false
 	local phaseId = 0
 	local pickedCategory = nil
@@ -40,6 +41,13 @@ function WavelengthDial.new(config)
 		local frac = (input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X
 		myGuess = math.clamp(frac, 0, 1)
 		setMarker(marker, myGuess)
+	end
+
+	local function clearRevealMarkers()
+		for _, m in ipairs(revealMarkers) do
+			m:Destroy()
+		end
+		table.clear(revealMarkers)
 	end
 
 	------------------------------------------------------------ categories
@@ -81,10 +89,10 @@ function WavelengthDial.new(config)
 		end)
 	end
 
-	local function onRound(round, total, left, right, hinterId, hinterName, guesserId, guesserName, seconds, categories)
-		roundLabel.Text = ("Round %d / %d"):format(round, total)
-		leftLabel.Text = left
-		rightLabel.Text = right
+	local function onRound(info)
+		roundLabel.Text = ("Round %d / %d"):format(info.round, info.rounds)
+		leftLabel.Text = info.left
+		rightLabel.Text = info.right
 		resultLabel.Text = ""
 		submitted = false
 		canDrag = false
@@ -92,35 +100,28 @@ function WavelengthDial.new(config)
 		setMarker(marker, 0.5)
 		marker.Visible = false
 		targetMarker.Visible = false
+		clearRevealMarkers()
 
 		-- by UserId, never DisplayName: two players can share a display name
-		if hinterId == localPlayer.UserId then
-			role = "hint"
+		isGiver = info.hinterId == localPlayer.UserId
+		if isGiver then
 			roleLabel.Text = "Pick a category, then write your clue"
 			roleLabel.TextColor3 = UiKit.YELLOW
-			showCategories(categories)
+			showCategories(info.categories)
 			clueBox.Visible = true
 			clueBox.Text = ""
 			clueBox.TextEditable = true
 			submitButton.Visible = true
 			submitButton.Text = "Send clue"
-		elseif guesserId == localPlayer.UserId then
-			role = "guess"
-			roleLabel.Text = ("You're guessing. %s is writing a clue"):format(hinterName)
-			roleLabel.TextColor3 = UiKit.GREEN
-			hideCategories()
-			clueBox.Visible = false
-			submitButton.Visible = false
 		else
-			role = "watch"
-			roleLabel.Text = ("%s gives the clue, %s guesses"):format(hinterName, guesserName)
+			roleLabel.Text = ("%s is writing the clue"):format(info.hinterName)
 			roleLabel.TextColor3 = UiKit.DIM
 			hideCategories()
 			clueBox.Visible = false
 			submitButton.Visible = false
 		end
 
-		startTimer(seconds, role == "hint" and "Your turn" or "Clue coming")
+		startTimer(info.seconds, isGiver and "Your turn" or "Clue coming")
 	end
 
 	-- only the clue giver gets this, and only they see the target before the reveal
@@ -129,70 +130,83 @@ function WavelengthDial.new(config)
 		setMarker(targetMarker, value)
 	end
 
-	local function onClue(category, text, seconds)
+	local function onClue(info)
 		hideCategories()
 		resultLabel.Text = ("<b>%s</b>\n\"%s\""):format(
-			UiKit.escape(category ~= "" and category or "No category"), UiKit.escape(text))
+			UiKit.escape(info.category ~= "" and info.category or "No category"),
+			UiKit.escape(info.text))
 
-		if role == "guess" and seconds > 0 then
+		if not isGiver and info.seconds > 0 then
 			canDrag = true
 			marker.Visible = true
 			submitted = false
 			submitButton.Visible = true
 			submitButton.Text = "Lock in guess"
-			clueBox.Visible = false
 			roleLabel.Text = "Drag the marker, then lock it in"
 			roleLabel.TextColor3 = UiKit.GREEN
-			startTimer(seconds, "Guessing")
+			startTimer(info.seconds, "Guessing")
 		else
-			if role == "hint" then
+			if isGiver then
 				clueBox.TextEditable = false
 				clueBox.Visible = false
 				submitButton.Visible = false
 			end
-			startTimer(seconds, "Waiting on the guess")
+			startTimer(info.seconds, "Waiting on the guesses")
 		end
 	end
 
-	local function onReveal(targetValue, guessValue, points, label, hinterName, guesserName, hinterTotal, guesserTotal)
+	local function onReveal(info)
 		phaseId += 1 -- stop any running timer
 		canDrag = false
 		submitButton.Visible = false
 		clueBox.Visible = false
 		hideCategories()
 		statusLabel.Text = ""
+		marker.Visible = false
+		clearRevealMarkers()
 
 		targetMarker.Visible = true
-		setMarker(targetMarker, targetValue)
-		if guessValue then
-			marker.Visible = true
-			setMarker(marker, guessValue)
-		else
-			marker.Visible = false
+		setMarker(targetMarker, info.target)
+
+		-- one faint marker per guess, so everyone can see the spread
+		for _, row in ipairs(info.rows) do
+			if row.guess then
+				local m = UiKit.make("Frame", {
+					Size = UDim2.new(0, 4, 0.6, 0), BackgroundColor3 = UiKit.WHITE,
+					BackgroundTransparency = 0.35, ZIndex = 2, Parent = bar,
+				})
+				m.Position = UDim2.new(math.clamp(row.guess, 0, 1), -2, 0.2, 0)
+				table.insert(revealMarkers, m)
+			end
 		end
 
-		roleLabel.Text = label
-		roleLabel.TextColor3 = points > 0 and UiKit.GREEN or UiKit.RED
-
-		if config.coop then
-			resultLabel.Text = ("+%d to the room  (now %d)"):format(points, hinterTotal)
-		else
-			resultLabel.Text = ("+%d each\n%s: %d    %s: %d"):format(
-				points,
-				UiKit.escape(hinterName), hinterTotal,
-				UiKit.escape(guesserName), guesserTotal)
+		local lines = {}
+		for _, row in ipairs(info.rows) do
+			table.insert(lines, ("%s  +%d  (%d)"):format(
+				UiKit.escape(row.name), row.points, row.total))
 		end
+		table.insert(lines, ("<b>%s</b> gave the clue  +%d  (%d)"):format(
+			UiKit.escape(info.hinterName), info.hinterPoints, info.hinterTotal))
+
+		if config.coop and info.roomTotal then
+			roleLabel.Text = ("The room is on %d"):format(info.roomTotal)
+			roleLabel.TextColor3 = UiKit.WHITE
+		else
+			roleLabel.Text = ("Clue giver earned %d, the guessers' average"):format(info.hinterPoints)
+			roleLabel.TextColor3 = info.hinterPoints > 0 and UiKit.GREEN or UiKit.RED
+		end
+		resultLabel.Text = table.concat(lines, "\n")
 	end
 
-	function self.onEvent(kind, ...)
+	function self.onEvent(kind, payload)
 		if kind == "round" then
-			onRound(...)
+			onRound(payload)
 		elseif kind == "target" then
-			onTarget(...)
+			onTarget(payload)
 		elseif kind == "clue" then
-			onClue(...)
+			onClue(payload)
 		elseif kind == "reveal" then
-			onReveal(...)
+			onReveal(payload)
 		end
 	end
 
@@ -200,7 +214,7 @@ function WavelengthDial.new(config)
 		phaseId += 1
 		canDrag = false
 		submitted = false
-		role = "watch"
+		isGiver = false
 		roundLabel.Text = ""
 		roleLabel.Text = "Get ready..."
 		roleLabel.TextColor3 = UiKit.WHITE
@@ -213,12 +227,13 @@ function WavelengthDial.new(config)
 		submitButton.Visible = false
 		marker.Visible = false
 		targetMarker.Visible = false
+		clearRevealMarkers()
 	end
 
 	------------------------------------------------------------ build
 
 	local function submit()
-		if role == "hint" and not submitted then
+		if isGiver and not submitted then
 			if not pickedCategory then
 				statusLabel.Text = "Pick a category first"
 				return
@@ -229,7 +244,7 @@ function WavelengthDial.new(config)
 			clueBox.TextEditable = false
 			submitButton.Visible = false
 			statusLabel.Text = "Clue sent"
-		elseif role == "guess" and canDrag and not submitted then
+		elseif not isGiver and canDrag and not submitted then
 			submitted = true
 			canDrag = false
 			api.send("guess", myGuess)
@@ -271,13 +286,13 @@ function WavelengthDial.new(config)
 
 		targetMarker = UiKit.make("Frame", {
 			Size = UDim2.new(0, 8, 1, 8), BackgroundColor3 = UiKit.GREEN,
-			Visible = false, ZIndex = 2, Parent = bar,
+			Visible = false, ZIndex = 3, Parent = bar,
 		})
 		UiKit.make("UICorner", { CornerRadius = UDim.new(0, 3), Parent = targetMarker })
 
 		marker = UiKit.make("Frame", {
 			Size = UDim2.new(0, 8, 1, 8), BackgroundColor3 = UiKit.WHITE,
-			Visible = false, ZIndex = 3, Parent = bar,
+			Visible = false, ZIndex = 4, Parent = bar,
 		})
 		UiKit.make("UICorner", { CornerRadius = UDim.new(0, 3), Parent = marker })
 
@@ -292,7 +307,7 @@ function WavelengthDial.new(config)
 			b.Font = Enum.Font.GothamMedium
 			b.Visible = false
 			b.Activated:Connect(function()
-				if role ~= "hint" or submitted then return end
+				if not isGiver or submitted then return end
 				pickedCategory = i
 				statusLabel.Text = ""
 				paintCategories()
@@ -319,7 +334,7 @@ function WavelengthDial.new(config)
 
 		resultLabel = UiKit.label(frame, {
 			Size = UDim2.new(1, -20, 0.2, 0), Position = UDim2.new(0, 10, 0.75, 0),
-			TextWrapped = true, RichText = true, TextSize = 18,
+			TextWrapped = true, RichText = true, TextSize = 17,
 			TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
 		})
 

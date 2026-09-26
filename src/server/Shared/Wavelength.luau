@@ -1,9 +1,10 @@
 -- ModuleScript: ServerScriptService > Shared > Wavelength
--- Rules both Wavelength modes agree on, plus a factory for the pair-based ones.
+-- Rules every Wavelength mode agrees on, plus a factory for the rotating ones.
 --
--- Solo and Co-op run the identical round (one clue giver, one guesser, rotating) and
--- differ only in who the points go to, so they are built from `newPairMode` rather than
--- copied. Teams has a genuinely different flow and builds its own round.
+-- Solo and Co-op run the identical round - one clue giver, everyone else guessing, the
+-- clue giver rotating so each player takes the job once per rotation - and differ only
+-- in who banks the points. They are built from `newRotatingMode` rather than copied.
+-- Teams has a genuinely different flow and writes its own round.
 
 local Spectrums = require(script.Parent.Spectrums)
 local Categories = require(script.Parent.Categories)
@@ -55,52 +56,47 @@ function Wavelength.orderedPlayers(ctx)
 	return list
 end
 
----------------------------------------------------------------- pair-based modes
+---------------------------------------------------------------- rotating modes
 
 local CLUE_TIME = 30 -- picking a category happens inside this, so it is a little longer
 local GUESS_TIME = 20
-local REVEAL_TIME = 7
+local REVEAL_TIME = 8
 local MAX_CLUE_LEN = 40
 local CATEGORY_CHOICES = 3
+local MAX_ROUNDS = 10 -- a big lobby shouldn't turn into a twenty minute match
 
--- config: { name, blurb, minPlayers, maxPlayers, rounds, shared }
--- `shared` makes every player score the round's points together (co-op) instead of
--- only the pair scoring it (competitive).
-function Wavelength.newPairMode(config)
+-- config: { name, blurb, minPlayers, maxPlayers, rotations, shared }
+--
+-- Round length is derived, not fixed: every player gives the clue once per rotation, so
+-- `rounds = players * rotations`. `shared` pools every point into one score for the room
+-- (co-op) instead of paying individuals (competitive).
+function Wavelength.newRotatingMode(config)
 	local mode = {
 		name = config.name,
 		blurb = config.blurb,
 		minPlayers = config.minPlayers,
 		maxPlayers = config.maxPlayers,
-		rounds = config.rounds or 6,
+		rounds = config.minPlayers, -- placeholder, recomputed from the real roster
 	}
 
 	-- state lives in this closure, so two modes built from this factory never share it
 	local spectrums = {}
 	local currentSpectrum, target = nil, nil
-	local hinter, guesser = nil, nil
+	local hinter = nil
 	local phase = nil -- nil | "clue" | "guess"
 	local categoryOptions, chosenCategory = {}, nil
-	local clue, guess = nil, nil
+	local clue = nil
+	local guesses = {} -- [player] = 0..1
 	local sharedTotal, roundsPlayed = 0, 0
 
-	local function pickPair(ctx, round)
-		local list = Wavelength.orderedPlayers(ctx)
-		if #list < 2 then
-			return nil, nil
-		end
-		local i = ((round - 1) % #list) + 1
-		local j = (i % #list) + 1
-		return list[i], list[j]
-	end
-
 	function mode.beginMatch(ctx)
-		currentSpectrum, target, hinter, guesser = nil, nil, nil, nil
-		phase, clue, guess, chosenCategory = nil, nil, nil, nil
-		categoryOptions = {}
+		currentSpectrum, target, hinter = nil, nil, nil
+		phase, clue, chosenCategory = nil, nil, nil
+		categoryOptions, guesses = {}, {}
 		sharedTotal, roundsPlayed = 0, 0
 
-		spectrums = Spectrums.pick(ctx.rounds)
+		local wanted = #Wavelength.orderedPlayers(ctx) * (config.rotations or 1)
+		spectrums = Spectrums.pick(math.clamp(wanted, 1, MAX_ROUNDS))
 		ctx.rounds = #spectrums
 	end
 
@@ -108,23 +104,29 @@ function Wavelength.newPairMode(config)
 		currentSpectrum = spectrums[round]
 		if not currentSpectrum then return end
 
-		hinter, guesser = pickPair(ctx, round)
-		if not hinter or not guesser then return end -- too few players left
+		local list = Wavelength.orderedPlayers(ctx)
+		if #list < 2 then return end -- nobody left to guess
 
+		-- one clue giver per round, rotating so everyone takes a turn
+		hinter = list[((round - 1) % #list) + 1]
 		target = Wavelength.newTarget()
-		clue, guess, chosenCategory = nil, nil, nil
-		-- offered categories depend on the dial, so a food-only dial never turns up
-		-- beside Vehicles and leaves the clue giver with nothing usable
-		categoryOptions = Categories.pickFor(currentSpectrum, CATEGORY_CHOICES)
+		clue, chosenCategory = nil, nil
+		guesses = {}
 		roundsPlayed += 1
+		categoryOptions = Categories.pickFor(currentSpectrum, CATEGORY_CHOICES)
 
-		-- UserIds go with the names: display names are not unique, so the client must
-		-- not work out whose turn it is by comparing them
-		ctx.send("round", round, ctx.rounds,
-			currentSpectrum.left, currentSpectrum.right,
-			hinter.UserId, hinter.DisplayName,
-			guesser.UserId, guesser.DisplayName,
-			CLUE_TIME, categoryOptions)
+		-- UserId, not DisplayName: display names are not unique, so the client must not
+		-- work out whose turn it is by comparing them
+		ctx.send("round", {
+			round = round,
+			rounds = ctx.rounds,
+			left = currentSpectrum.left,
+			right = currentSpectrum.right,
+			hinterId = hinter.UserId,
+			hinterName = hinter.DisplayName,
+			seconds = CLUE_TIME,
+			categories = categoryOptions,
+		})
 		ctx.sendTo(hinter, "target", target)
 
 		phase = "clue"
@@ -140,54 +142,95 @@ function Wavelength.newPairMode(config)
 		else
 			shown = "(no clue given)"
 		end
-		-- 0 seconds tells the client there is nothing to guess at, so it doesn't briefly
-		-- arm the dial before the reveal lands
-		ctx.send("clue", chosenCategory or "", shown, clue and GUESS_TIME or 0)
+		-- 0 seconds means there is nothing to guess at, so the dial never arms
+		ctx.send("clue", {
+			category = chosenCategory or "",
+			text = shown,
+			seconds = clue and GUESS_TIME or 0,
+		})
 
 		if clue then
 			phase = "guess"
 			ctx.waitUntil(GUESS_TIME, function()
-				return guess ~= nil
+				for _, p in ipairs(ctx.players()) do
+					if p ~= hinter and not guesses[p] then
+						return false
+					end
+				end
+				return true
 			end)
 			phase = nil
 		end
 
-		local points, label = 0, "No guess"
-		if guess then
-			points, label = Wavelength.score(math.abs(guess - target))
-		end
-
-		if points > 0 then
-			if config.shared then
-				-- co-op: one score for the room, so everyone banks the same points
-				sharedTotal += points
-				for _, p in ipairs(ctx.players()) do
-					ctx.award(p, points)
+		-- every guesser scores their own accuracy
+		local scored, total, count = {}, 0, 0
+		for _, p in ipairs(Wavelength.orderedPlayers(ctx)) do
+			if p ~= hinter then
+				count += 1
+				local pts, label = 0, "No guess"
+				if guesses[p] then
+					pts, label = Wavelength.score(math.abs(guesses[p] - target))
 				end
-			else
-				ctx.award(hinter, points)
-				ctx.award(guesser, points)
+				total += pts
+				table.insert(scored, { player = p, guess = guesses[p], points = pts, label = label })
 			end
 		end
 
-		ctx.send("reveal", target, guess, points, label,
-			hinter.DisplayName, guesser.DisplayName,
-			ctx.scoreOf(hinter), ctx.scoreOf(guesser))
+		-- the clue giver is paid the floor of what their clue earned on average, so a
+		-- clue that only one person reads correctly is worth less than one everybody gets
+		local hinterPoints = count > 0 and math.floor(total / count) or 0
+
+		if config.shared then
+			-- co-op: one score for the room, so everyone banks the same points
+			sharedTotal += total
+			for _, p in ipairs(ctx.players()) do
+				ctx.award(p, total)
+			end
+		else
+			for _, row in ipairs(scored) do
+				if row.points > 0 then
+					ctx.award(row.player, row.points)
+				end
+			end
+			if hinterPoints > 0 then
+				ctx.award(hinter, hinterPoints)
+			end
+		end
+
+		local rows = {}
+		for _, row in ipairs(scored) do
+			table.insert(rows, {
+				name = row.player.DisplayName,
+				guess = row.guess,
+				points = row.points,
+				total = ctx.scoreOf(row.player),
+			})
+		end
+
+		ctx.send("reveal", {
+			target = target,
+			rows = rows,
+			hinterName = hinter.DisplayName,
+			hinterPoints = hinterPoints,
+			hinterTotal = ctx.scoreOf(hinter),
+			roomTotal = config.shared and sharedTotal or nil,
+		})
 
 		task.wait(REVEAL_TIME)
 	end
 
 	function mode.endMatch()
 		phase = nil
-		currentSpectrum, target, hinter, guesser = nil, nil, nil, nil
-		clue, guess, chosenCategory = nil, nil, nil
-		categoryOptions = {}
+		currentSpectrum, target, hinter = nil, nil, nil
+		clue, chosenCategory = nil, nil
+		categoryOptions, guesses = {}, {}
 	end
 
 	function mode.playerLeft(_, player)
-		-- the round just times out if whoever left was mid-turn
-		if hinter == player then hinter = nil end
-		if guesser == player then guesser = nil end
+		guesses[player] = nil
+		if hinter == player then
+			hinter = nil -- the clue phase just times out
+		end
 	end
 
 	-- co-op has no winner to crown, so the podium gets a combined line instead
@@ -209,9 +252,9 @@ function Wavelength.newPairMode(config)
 			chosenCategory = categoryOptions[a]
 			clue = text
 		elseif kind == "guess" then
-			if phase ~= "guess" or player ~= guesser or guess then return end
+			if phase ~= "guess" or player == hinter or guesses[player] then return end
 			if typeof(a) ~= "number" or a ~= a then return end -- NaN check
-			guess = math.clamp(a, 0, 1)
+			guesses[player] = math.clamp(a, 0, 1)
 		end
 	end
 

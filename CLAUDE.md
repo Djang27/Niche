@@ -41,10 +41,11 @@ src/server/ (-> ServerScriptService)
   `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
 - `Shared/Wavelength.luau`: rules every Wavelength mode agrees on - `score(distance)` proximity bands,
-  `newTarget()`, `cleanClue(text, maxLen)`, `orderedPlayers(ctx)` - plus `newPairMode(config)`, the
-  factory Solo and Co-op are both built from. Those two run an identical round and differ only in who
-  banks the points (`shared = true` pays the whole room), so neither is a copy of the other. Teams has
-  a genuinely different flow and writes its own round.
+  `newTarget()`, `cleanClue(text, maxLen)`, `orderedPlayers(ctx)` - plus `newRotatingMode(config)`, the
+  factory Solo and Co-op are both built from. Those two run an identical round (one clue giver,
+  everyone else guessing, the giver rotating) and differ only in who banks the points
+  (`shared = true` pays the whole room), so neither is a copy. Round count is derived, not fixed:
+  `players * rotations`, capped at 10. Teams has a different flow and writes its own round.
 - `Shared/Spectrums.luau`: Wavelength dial content, pairs of opposed labels, plus `pick(n)` with
   no-repeat memory. Server only, like the answer lists. A dial may carry `onlyWith = { ... }` naming
   the categories it can sort; most dials sort anything and leave it off. That pairing is what stops
