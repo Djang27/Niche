@@ -46,10 +46,16 @@ src/server/ (-> ServerScriptService)
   banks the points (`shared = true` pays the whole room), so neither is a copy of the other. Teams has
   a genuinely different flow and writes its own round.
 - `Shared/Spectrums.luau`: Wavelength dial content, pairs of opposed labels, plus `pick(n)` with
-  no-repeat memory. Server only, like the answer lists.
-- `Shared/Categories.luau`: broad subject areas (Food, Sports, Movies...) plus `pick(n)`. Three are
-  offered each Wavelength round and the clue giver takes one, which is what stops the clue from
-  being about anything in existence. Keep entries broad - a narrow category makes the round worse.
+  no-repeat memory. Server only, like the answer lists. A dial may carry `onlyWith = { ... }` naming
+  the categories it can sort; most dials sort anything and leave it off. That pairing is what stops
+  "Salty <-> Sweet" being offered beside Vehicles, where the clue giver has no usable option at all.
+  Startup warns if an `onlyWith` names an unknown category or lists fewer than the 3 offered.
+- `Shared/Categories.luau`: broad subject areas (Food, Sports, Movies...) plus `pickFor(spectrum, n)`,
+  which respects a dial's `onlyWith`, and a whole-pool `pick(n)`. Three are offered each Wavelength
+  round and the clue giver takes one, which is what stops the clue being about anything in existence.
+  Entries must be broad AND placeable on almost any dial - Weather, Holidays and School subjects were
+  removed for failing the second test. A subject that only suits a couple of dials belongs in those
+  dials' `onlyWith`, not in this pool.
 - The Wavelength round, common to all three variants: a hidden target sits on a dial. The clue giver
   alone is sent it via `ctx.sendTo`, picks one of 3 random categories, and writes a clue, which is
   filtered before anyone else sees it. Guessers drag a marker; points come from how close it lands.

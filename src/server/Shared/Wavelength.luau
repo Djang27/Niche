@@ -113,7 +113,9 @@ function Wavelength.newPairMode(config)
 
 		target = Wavelength.newTarget()
 		clue, guess, chosenCategory = nil, nil, nil
-		categoryOptions = Categories.pick(CATEGORY_CHOICES)
+		-- offered categories depend on the dial, so a food-only dial never turns up
+		-- beside Vehicles and leaves the clue giver with nothing usable
+		categoryOptions = Categories.pickFor(currentSpectrum, CATEGORY_CHOICES)
 		roundsPlayed += 1
 
 		-- UserIds go with the names: display names are not unique, so the client must

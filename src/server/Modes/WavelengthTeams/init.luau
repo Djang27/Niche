@@ -91,7 +91,8 @@ function WavelengthTeams.runRound(ctx, round)
 		if #roster > 0 then
 			targets[team] = Wavelength.newTarget()
 			givers[team] = roster[((round - 1) % #roster) + 1]
-			options[team] = Categories.pick(CATEGORY_CHOICES)
+			-- categories that actually fit this dial, picked per team
+			options[team] = Categories.pickFor(spectrum, CATEGORY_CHOICES)
 		end
 	end
 
