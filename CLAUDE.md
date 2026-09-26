@@ -8,9 +8,9 @@ both get half points. Highest total after the match wins.
 
 Menu-based game: no characters spawn (Players.CharacterAutoLoads = false), all UI is built in code.
 
-Niche is becoming a collection of party games sharing one lobby (Wavelength and a "say words related
-to a topic" game are planned), so the code is split into a shell and swappable modes. "Niche" is both
-the place name and the name of the first mode.
+Niche is a collection of party games sharing one lobby, so the code is split into a shell and
+swappable modes. "Niche" is both the place name and the name of the first mode. Wavelength is built
+(Solo / Teams / Co-op); a "say words related to a topic" game is still planned.
 
 ## Workflow
 - Code lives in `src/`, synced into Roblox Studio live by Rojo (`rojo serve` + Rojo plugin connected).
@@ -40,19 +40,31 @@ src/server/ (-> ServerScriptService)
 - `Shared/TextFilter.luau`: TextService wrapper for any player-typed text other players will see.
   `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
-- `Shared/Wavelength.luau`: rules both Wavelength modes agree on - `score(distance)` proximity bands,
-  `newTarget()`, `cleanClue(text, maxLen)`, `orderedPlayers(ctx)`. Deliberately not a shared round
-  loop: the two modes' flows genuinely differ.
+- `Shared/Wavelength.luau`: rules every Wavelength mode agrees on - `score(distance)` proximity bands,
+  `newTarget()`, `cleanClue(text, maxLen)`, `orderedPlayers(ctx)` - plus `newPairMode(config)`, the
+  factory Solo and Co-op are both built from. Those two run an identical round and differ only in who
+  banks the points (`shared = true` pays the whole room), so neither is a copy of the other. Teams has
+  a genuinely different flow and writes its own round.
 - `Shared/Spectrums.luau`: Wavelength dial content, pairs of opposed labels, plus `pick(n)` with
   no-repeat memory. Server only, like the answer lists.
 - `Shared/Categories.luau`: broad subject areas (Food, Sports, Movies...) plus `pick(n)`. Three are
   offered each Wavelength round and the clue giver takes one, which is what stops the clue from
   being about anything in existence. Keep entries broad - a narrow category makes the round worse.
-- `Modes/WavelengthSolo/init.luau`: each round pairs one clue giver with one guesser and both score
-  by how close the guess lands; the pair rotates each round and everyone else watches. The target
-  goes only to the clue giver via `ctx.sendTo`. The clue giver is offered 3 random categories and
-  must take one before sending, folded into the clue step so rounds don't grow a phase. Clues are
-  filtered. Capped at 4 players, and needs at least 2 so it cannot start in single-player Play Solo.
+- The Wavelength round, common to all three variants: a hidden target sits on a dial. The clue giver
+  alone is sent it via `ctx.sendTo`, picks one of 3 random categories, and writes a clue, which is
+  filtered before anyone else sees it. Guessers drag a marker; points come from how close it lands.
+  Picking the category is folded into the clue step so rounds don't grow a phase.
+- `Modes/WavelengthSolo/init.luau`: competitive rotating pairs - one clue giver, one guesser, both
+  scoring the same, everyone else watching. A ~20-line config over `newPairMode`. 3-4 players; the
+  minimum is 3 *on purpose*, because at 2 the pair is the same two people every round scoring
+  identically, so the match could only ever end in a tie. Do not "fix" that back to 2.
+- `Modes/WavelengthCoop/init.luau`: the same rotating-pair round, but one score for the whole room and
+  a `matchSummary` reporting the total instead of a winner. 2-4 players, and the honest home for two.
+- `Modes/WavelengthTeams/init.luau`: two teams play the same dial at once, each with its own hidden
+  target and its own clue giver. **Every clue goes out via `ctx.sendTo`, never `ctx.send`** - one
+  stray broadcast during the clue or guess phase hands the other team the answer, so the reveal is the
+  only public message in the file. Each round every member of a team banks the team's points, which is
+  what makes the shell's per-player standings already read as team standings. 4+ players.
 
 src/client/ (-> StarterPlayer.StarterPlayerScripts)
 - `GameUI.client.luau`: the shell's UI. Screens are menu -> modes -> lobby -> the active mode's own
@@ -63,10 +75,13 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   a real module with that name exists.
 - `UiKit.luau`: shared make/panel/label/button/escape helpers and the colour palette.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
-- `Modes/WavelengthSolo.luau`: the dial screen. Drag the marker along the bar, clue box for the clue
-  giver, reveal shows the target and guess markers together.
-- `Modes/WavelengthTeams.luau`: the same dial, but you only ever see your own team's clue. The other
-  team's target, clue and guesses appear only at the reveal, colour coded per team.
+- `WavelengthDial.luau`: the dial screen shared by Solo and Co-op, as `new(config)`. Each call builds
+  its own widgets and its own state, so the two modes never tread on each other. They render an
+  identical round and differ only in how the reveal is worded.
+- `Modes/WavelengthSolo.luau` and `Modes/WavelengthCoop.luau`: thin wrappers - `WavelengthDial.new`
+  plus name/blurb/group/variant.
+- `Modes/WavelengthTeams.luau`: its own screen. Same dial, but you only ever see your own team's clue;
+  the other team's target, clue and guesses appear only at the reveal, colour coded per team.
 
 ## Mode interface
 Adding a game = one server module + one client module. No shell changes.
@@ -87,8 +102,8 @@ someone out, and the lobby says so. Omit it for no cap.
 Client, `src/client/Modes/<Name>.luau` returns:
   { name, blurb, group, variant, build(parent, api) -> frame, onEvent(kind, ...), reset() }
 `group` and `variant` are optional: modes sharing a `group` collapse into one button on the modes
-screen that opens a submenu of their `variant` names (Wavelength -> Solo / Teams). A mode with no
-group gets its own grid button.
+screen that opens a submenu of their `variant` names (Wavelength -> Solo / Teams / Co-op). A mode with
+no group gets its own grid button.
 `build` returns the frame the shell shows/hides; `api.send(kind, ...)` and `api.request(kind, ...)`
 reach the server half. The shell calls `reset()` when a match ends.
 
@@ -99,20 +114,25 @@ reach the server half. The shell calls `reset()` when a match ends.
   rather than browsing the menu or store). Only `InLobby` players count towards starting a match and
   only they get pulled into one, so an idle player on the menu can never block a countdown.
 - `ReplicatedStorage.AvailableModes`: one StringValue per loadable mode (Name = module name,
-  Value = display name, attribute `MinPlayers`). The client builds the lobby's game picker from
-  this intersected with the modes it has screens for, so nothing is hardcoded per game.
+  Value = display name, attributes `MinPlayers` and `MaxPlayers`, where 0 means no cap). The client
+  builds the modes screen from this intersected with the modes it has screens for, so nothing is
+  hardcoded per game.
 
 ## Remotes (ReplicatedStorage.Remotes)
 All shell-owned and mode-agnostic. Modes never create their own remotes.
 - RemoteEvent `LobbyAction`: client -> server, actions "ready", "unready", "start", "playAgain", "toLobby",
   "setMode" (second arg is a mode id; host only, lobby only), and "inLobby" (second arg is a boolean;
   leaving the lobby also clears Ready)
-- RemoteEvent `MatchOver`: server -> client, final standings
+- RemoteEvent `MatchOver`: server -> client, final standings plus the optional `matchSummary` line
 - RemoteEvent `ModeEvent`: both directions, first arg is a kind string the active mode defines
 - RemoteFunction `ModeRequest`: client asks the active mode something, first arg is a kind string
 
 Niche's kinds: "prompt" and "results" (server -> client), "submit" (client -> server), and "check" on
 ModeRequest (returns status, canonicalAnswer, displayText; status is valid | suggest | invalid | slow | closed).
+
+Wavelength's kinds: "round", "target" (clue giver only), "clue" and "reveal" (server -> client), plus
+"clue" and "guess" (client -> server). Teams sends table payloads because its messages carry more
+fields; Solo and Co-op send positional arguments.
 
 ## List format
 ```lua
@@ -149,17 +169,21 @@ return {
 
 ## Roadmap (rough order)
 Done: answer logging to DataStore; the shell/mode split; `Shared/TextFilter.luau`; the
-menu -> modes -> lobby screens; Wavelength Solo, with category picks and the mode-group submenu.
+menu -> modes -> lobby screens; all three Wavelength variants (Solo / Teams / Co-op) with category
+picks, the mode-group submenu, and the `matchSummary` podium hook.
 The planned games below are provisional - the owner expects to swap them out and add others, so
 nothing should hardcode a specific game outside its own module.
-1. Wavelength Teams. Same round core as Solo but scored within a team, 4+ players, whichever team
-   scores more wins. It slots into the existing Wavelength submenu beside Solo with no UI work, so
-   the shared round logic should come out of `Modes/WavelengthSolo` into `Shared/` first.
-2. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them
-3. Data-driven tiers from real answer frequency
-4. "Say words related to a topic" mode. Blocked on a design answer first: how to match free-form words
+1. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them. Blocked on
+   real players generating data, not on code.
+2. Data-driven tiers from real answer frequency. Same blocker as 1.
+3. "Say words related to a topic" mode. Blocked on a design answer first: how to match free-form words
    across players with no canonical list ("dog" vs "dogs" vs "Dog").
-5. Ranked-lite: rating per player (pairwise Elo scaled by opponent count), ranks in lobby, global leaderboard.
-   Private servers and matches under 3 players do not count.
-6. Real ranked queue (MemoryStoreService + TeleportService) only once concurrent players can support it
-7. Cosmetic passes: Legendary reveal effects, Party Host pass (custom lobby settings, non-ranked only)
+4. Ranked-lite: rating per player (pairwise Elo scaled by opponent count), ranks in lobby, global leaderboard.
+   Private servers and matches under 3 players do not count. The first item here that is genuinely
+   unblocked and could just be built.
+5. Real ranked queue (MemoryStoreService + TeleportService) only once concurrent players can support it
+6. Cosmetic passes: Legendary reveal effects, Party Host pass (custom lobby settings, non-ranked only)
+
+Open and undecided: the Wavelength submenu sorts by module name, so it reads Co-op / Solo / Teams.
+The owner has been told and has not asked for an explicit order - don't reorder unprompted. Two `???`
+placeholder slots remain on the modes grid for a fourth game.
