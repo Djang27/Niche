@@ -9,5 +9,8 @@ mode.name = "Wavelength Co-op"
 mode.blurb = "One score for the room, beat your best"
 mode.group = "Wavelength" -- shares the Wavelength button with Solo and Teams
 mode.variant = "Co-op"
+-- everyone finishes on the same score by design, so ranking them is noise at best and
+-- crowns a meaningless winner at worst. The matchSummary total is the whole result.
+mode.hideStandings = true
 
 return mode

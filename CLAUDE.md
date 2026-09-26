@@ -98,6 +98,11 @@ Server, `src/server/Modes/<Name>/init.luau` returns:
     matchSummary(ctx) -> string, onEvent(ctx, player, kind, ...), onRequest(ctx, player, kind, ...) }
 `matchSummary` is optional and adds one line to the podium for whatever the per-player standings
 can't express - which team won, a co-op total. Return nil or omit it for a normal ranked podium.
+
+Ties are shown as ties, never broken. The shell sorts by score then name so the order is stable,
+and the podium takes each row's rank from its score, so equal scores share a place and a medal
+(1, 1, 3). There is deliberately no tiebreaker: inventing a winner out of hash order was the bug
+this replaced.
 Only `runRound` is required. `ctx` gives the mode: `players()`, `isPlaying(p)`, `send(kind, ...)`,
 `sendTo(player, kind, ...)` (for per-player secrets, e.g. Wavelength's target), `award(player, points)`,
 `scoreOf(player)`, `waitUntil(seconds, predicate)`, and `rounds` (a mode may shorten it in `beginMatch`).
@@ -106,7 +111,10 @@ Only `runRound` is required. `ctx` gives the mode: `players()`, `isPlaying(p)`, 
 someone out, and the lobby says so. Omit it for no cap.
 
 Client, `src/client/Modes/<Name>.luau` returns:
-  { name, blurb, group, variant, build(parent, api) -> frame, onEvent(kind, ...), reset() }
+  { name, blurb, group, variant, hideStandings, build(parent, api) -> frame, onEvent(kind, ...), reset() }
+`hideStandings` suppresses the ranked list on the podium, leaving the `matchSummary` line as the
+whole result. Set it when ranking individuals is meaningless - Co-op, where every player finishes
+on the same score by construction.
 `group` and `variant` are optional: modes sharing a `group` collapse into one button on the modes
 screen that opens a submenu of their `variant` names (Wavelength -> Solo / Teams / Co-op). A mode with
 no group gets its own grid button.

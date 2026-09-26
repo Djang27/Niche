@@ -366,7 +366,14 @@ local function runMatch()
 			table.insert(standings, { name = p.DisplayName, score = s })
 		end
 	end
-	table.sort(standings, function(a, b) return a.score > b.score end)
+	-- Name breaks the tie so the order is at least stable. The loop above walks a hash
+	-- table, so without this two players on the same score swap places run to run.
+	table.sort(standings, function(a, b)
+		if a.score ~= b.score then
+			return a.score > b.score
+		end
+		return a.name < b.name
+	end)
 
 	-- a mode may add one line to the podium: which team won, a co-op total, whatever
 	-- the per-player standings can't express on their own

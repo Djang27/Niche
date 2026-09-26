@@ -392,12 +392,28 @@ end)
 remotes.MatchOver.OnClientEvent:Connect(function(standings, summary)
 	local medals = { "🥇", "🥈", "🥉" }
 	local lines = {}
+
+	-- Rank comes from the score, not the row number, so equal scores share a place and a
+	-- medal and the next distinct score skips past them: 1, 1, 3 rather than 1, 2, 3.
+	-- Ranking by row would hand one of two tied players gold for no reason.
+	local rank = 0
 	for i, s in ipairs(standings) do
+		if i == 1 or s.score ~= standings[i - 1].score then
+			rank = i
+		end
 		table.insert(lines, ("%s %d. %s  <b>%d pts</b>"):format(
-			medals[i] or "  ", i, UiKit.escape(s.name), s.score))
+			medals[rank] or "  ", rank, UiKit.escape(s.name), s.score))
 	end
-	standingsLabel.Text = table.concat(lines, "\n")
-	summaryLabel.Text = summary or ""
+
+	local mode = activeMode()
+	if mode and mode.hideStandings then
+		-- no meaningful individual ranking in this mode, so the summary is the result
+		standingsLabel.Text = summary or ""
+		summaryLabel.Text = ""
+	else
+		standingsLabel.Text = table.concat(lines, "\n")
+		summaryLabel.Text = summary or ""
+	end
 	playAgainButton.Visible = true
 	toLobbyButton.Visible = true
 	podiumWaitLabel.Visible = false
