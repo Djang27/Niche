@@ -183,6 +183,15 @@ return {
   so never "fall back" to the raw text when filtering errors.
 - Modes never create remotes, touch scores directly, or reach into the shell: everything goes through
   `ctx` and ModeEvent / ModeRequest. Keeping that boundary is what makes adding a game cheap.
+- A mode's tables keyed by Player must be cleared in `endMatch`, not only in `playerLeft`. The shell
+  calls `playerLeft` on the ACTIVE mode only, so an inactive mode goes on pinning Player instances for
+  anyone who leaves after the host switched away from it. This was a real leak in
+  `WavelengthTeams.teamOf`.
+- Performance: what actually bites in Roblox is DataStore quotas (~60 + 10/player per minute, and
+  `UpdateAsync` spends both a read and a write), `TextService` filter limits, and per-tick work inside
+  the `while true` loops - not raw Lua speed. Cache anything rebuilt on a hot path onto the immutable
+  object it belongs to (see `prompt.spellings` in AnswerJudge). Do not churn working, playtested code
+  for wins too small to measure at this player count.
 - Never sell anything that affects scoring (future monetization is cosmetic / host controls only).
 - Keep tunables as constants at the top of files (timers, rounds, MIN_PLAYERS, etc).
 
