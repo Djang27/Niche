@@ -38,6 +38,50 @@ UiKit.make("Frame", {
 	BorderSizePixel = 0, ZIndex = 0, Parent = gui,
 })
 
+---------------------------------------------------------------- running score
+
+-- Sits above whichever mode is playing. The shell owns scores, so every game gets a
+-- visible running total for free instead of each one remembering to print one - and it
+-- stays up through the whole round rather than flashing past in a reveal.
+local scoreStrip = UiKit.make("Frame", {
+	Size = UDim2.fromScale(0.5, 0.055), Position = UDim2.fromScale(0.25, 0.135),
+	BackgroundColor3 = Color3.fromRGB(25, 25, 35), Visible = false, Parent = gui,
+})
+UiKit.make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = scoreStrip })
+
+local scoreLabel = UiKit.label(scoreStrip, {
+	Size = UDim2.new(1, -16, 1, 0), Position = UDim2.new(0, 8, 0, 0),
+	TextScaled = true, Font = Enum.Font.GothamBold, Text = "",
+})
+
+local function renderScore()
+	-- a mode may phrase it itself (Teams: "Red 14 - 9 Blue")
+	local custom = ReplicatedStorage:GetAttribute("Scoreboard")
+	if custom and custom ~= "" then
+		scoreLabel.Text = custom
+		return
+	end
+
+	local rows = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p:GetAttribute("InMatch") then
+			table.insert(rows, { name = p.DisplayName, score = p:GetAttribute("Score") or 0 })
+		end
+	end
+	table.sort(rows, function(a, b)
+		if a.score ~= b.score then
+			return a.score > b.score
+		end
+		return a.name < b.name
+	end)
+
+	local parts = {}
+	for _, r in ipairs(rows) do
+		table.insert(parts, ("%s %d"):format(r.name, r.score))
+	end
+	scoreLabel.Text = table.concat(parts, "   \u{00B7}   ")
+end
+
 ---------------------------------------------------------------- navigation
 
 -- Where this player has browsed to. Local only: two players can be on different
@@ -507,6 +551,7 @@ local function render()
 	groupFrame.Visible = screen == "group"
 	lobbyFrame.Visible = screen == "lobby"
 	podiumFrame.Visible = screen == "podium"
+	scoreStrip.Visible = screen == "game"
 
 	-- only the active mode's screen is ever visible
 	for _, m in pairs(modes) do
@@ -517,6 +562,8 @@ local function render()
 
 	if screen == "lobby" then
 		renderLobby(state)
+	elseif screen == "game" then
+		renderScore()
 	end
 end
 

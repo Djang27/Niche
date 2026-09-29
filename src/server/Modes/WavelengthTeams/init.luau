@@ -205,6 +205,13 @@ function WavelengthTeams.runRound(ctx, round)
 	task.wait(REVEAL_TIME)
 end
 
+-- the running score, kept on screen all round. Per-player totals would show the same
+-- number twice per team, which reads as noise rather than a score.
+function WavelengthTeams.scoreboard()
+	return ("%s  %d  -  %d  %s"):format(
+		TEAM_NAMES[1], teamScore[1], teamScore[2], TEAM_NAMES[2])
+end
+
 -- the per-player standings can't say which team won, so the podium gets a line
 function WavelengthTeams.matchSummary()
 	if teamScore[1] > teamScore[2] then

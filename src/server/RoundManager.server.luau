@@ -207,6 +207,9 @@ end
 
 function ctx.award(player, points)
 	scores[player] = (scores[player] or 0) + points
+	-- replicated so a running score can stay on screen, rather than only existing in
+	-- whatever the mode happens to print at its reveal
+	player:SetAttribute("Score", scores[player])
 end
 
 function ctx.scoreOf(player)
@@ -338,6 +341,7 @@ local function startMatch()
 	for _, p in ipairs(lobbyPlayers()) do
 		participants[p] = true
 		scores[p] = 0
+		p:SetAttribute("Score", 0)
 		p:SetAttribute("InMatch", true)
 		p:SetAttribute("Ready", false)
 	end
@@ -358,6 +362,15 @@ local function runMatch()
 			return false
 		end
 		mode.runRound(ctx, round)
+
+		-- a mode may phrase the running score its own way (Teams wants two team totals,
+		-- not four identical player totals). nil falls back to the per-player strip.
+		local line = nil
+		if mode.scoreboard then
+			local ok, text = pcall(mode.scoreboard, ctx)
+			line = (ok and typeof(text) == "string") and text or nil
+		end
+		ReplicatedStorage:SetAttribute("Scoreboard", line)
 	end
 
 	local standings = {}
@@ -408,6 +421,7 @@ local function runPodium()
 end
 
 local function endMatch()
+	ReplicatedStorage:SetAttribute("Scoreboard", nil)
 	if activeMode and activeMode.endMatch then
 		pcall(activeMode.endMatch, ctx)
 	end

@@ -117,7 +117,11 @@ Adding a game = one server module + one client module. No shell changes.
 Server, `src/server/Modes/<Name>/init.luau` returns:
   { name, blurb, minPlayers, maxPlayers, rounds,
     beginMatch(ctx), runRound(ctx, round), endMatch(), playerLeft(ctx, player),
-    matchSummary(ctx) -> string, onEvent(ctx, player, kind, ...), onRequest(ctx, player, kind, ...) }
+    matchSummary(ctx) -> string, scoreboard(ctx) -> string,
+    onEvent(ctx, player, kind, ...), onRequest(ctx, player, kind, ...) }
+`scoreboard` is optional and supplies the running score shown above the mode's screen for the whole
+round. Return nil or omit it and the shell shows a generic per-player strip instead. Teams uses it
+because four identical player totals read as noise next to "Red 14 - 9 Blue".
 `matchSummary` is optional and adds one line to the podium for whatever the per-player standings
 can't express - which team won, a co-op total. Return nil or omit it for a normal ranked podium.
 
@@ -145,8 +149,10 @@ reach the server half. The shell calls `reset()` when a match ends.
 
 ## State the client reads (attributes)
 - ReplicatedStorage: `GameState` ("Lobby" | "Countdown" | "InMatch" | "Podium"), `Countdown`, `HostUserId`,
-  `ActiveMode` (module name of the mode currently loaded, e.g. "Niche")
-- Each Player: `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
+  `ActiveMode` (module name of the mode currently loaded, e.g. "Niche"), `Scoreboard` (the running
+  score line a mode wants shown, or nil for the generic per-player strip)
+- Each Player: `Score` (running match total, set by `ctx.award` so the shell can keep it on screen
+  without a remote), `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
   rather than browsing the menu or store). Only `InLobby` players count towards starting a match and
   only they get pulled into one, so an idle player on the menu can never block a countdown.
 - `ReplicatedStorage.AvailableModes`: one StringValue per loadable mode (Name = module name,
