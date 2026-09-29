@@ -34,7 +34,7 @@ function PlayerCards.new(parent, position, size)
 		Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = scroller,
 	})
 
-	local self = {}
+	local self = { frame = scroller } -- exposed so a mode can hide it during play
 	local live = {}
 	local generation = 0
 

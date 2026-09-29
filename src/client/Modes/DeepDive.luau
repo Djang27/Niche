@@ -3,6 +3,7 @@
 -- so what you see on screen is exactly what you are scored on. Tap one to drop it.
 
 local UiKit = require(script.Parent.Parent.UiKit)
+local PlayerCards = require(script.Parent.Parent.PlayerCards)
 
 local DeepDive = {
 	name = "Deep Dive",
@@ -11,7 +12,8 @@ local DeepDive = {
 
 local api
 local frame, roundLabel, categoryLabel, input, doneButton
-local wordsFrame, statusLabel, resultLabel
+local wordsFrame, statusLabel, sharedLabel
+local cards
 
 local myWords = {}        -- display text, in server order
 local maxWords = 10
@@ -124,8 +126,9 @@ local function onRound(info)
 	doneButton.Text = "Done"
 	doneButton.BackgroundColor3 = UiKit.GREEN
 	wordsFrame.Visible = true
-	resultLabel.Visible = false
-	resultLabel.Text = ""
+	cards.frame.Visible = false
+	cards.clear()
+	sharedLabel.Visible = false
 	paintWords()
 	startTimer(info.seconds, "Name as many as you can")
 end
@@ -137,20 +140,35 @@ local function onReveal(info)
 	input.TextEditable = false
 	doneButton.Visible = false
 	wordsFrame.Visible = false
-	resultLabel.Visible = true
+	cards.frame.Visible = true
 	statusLabel.Text = ""
 
-	local lines = {}
+	-- the round's best score gets the flash
+	local best = 0
 	for _, row in ipairs(info.rows) do
-		table.insert(lines, ("%s  %d answers, <b>%d unique</b>  +%d  (%d)"):format(
-			UiKit.escape(row.name), row.words, row.unique, row.unique, row.total))
+		best = math.max(best, row.unique)
 	end
-	if info.shared ~= "" then
-		table.insert(lines, ("\nEveryone had these, so nobody scored them: %s%s"):format(
-			UiKit.escape(info.shared),
-			info.sharedCount > 8 and (" (+%d more)"):format(info.sharedCount - 8) or ""))
+
+	local rows = {}
+	for _, row in ipairs(info.rows) do
+		table.insert(rows, {
+			userId = row.userId,
+			name = row.name,
+			headline = ("%d unique"):format(row.unique),
+			trailing = ("+%d"):format(row.unique),
+			sub = ("of %d   total %d"):format(row.words, row.total),
+			accent = row.unique > 0 and UiKit.GREEN or UiKit.DIM,
+			emphasis = best > 0 and row.unique == best,
+		})
 	end
-	resultLabel.Text = table.concat(lines, "\n")
+	cards.show(rows, "Nobody wrote anything")
+
+	sharedLabel.Visible = info.shared ~= ""
+	sharedLabel.Text = info.shared ~= ""
+		and ("Everyone had these, so nobody scored them:  %s%s"):format(
+			info.shared,
+			info.sharedCount > 8 and (" (+%d more)"):format(info.sharedCount - 8) or "")
+		or ""
 end
 
 function DeepDive.onEvent(kind, payload)
@@ -170,8 +188,9 @@ function DeepDive.reset()
 	roundLabel.Text = ""
 	categoryLabel.Text = "Get ready..."
 	statusLabel.Text = ""
-	resultLabel.Text = ""
-	resultLabel.Visible = false
+	cards.clear()
+	cards.frame.Visible = false
+	sharedLabel.Visible = false
 	wordsFrame.Visible = true
 	input.Text = ""
 	doneButton.Visible = false
@@ -219,9 +238,14 @@ function DeepDive.build(parent, modeApi)
 		Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = wordsFrame,
 	})
 
-	resultLabel = UiKit.label(frame, {
-		Size = UDim2.new(1, -20, 0.5, 0), Position = UDim2.new(0, 10, 0.46, 0),
-		TextWrapped = true, RichText = true, TextSize = 16, Visible = false,
+	cards = PlayerCards.new(frame,
+		UDim2.new(0, 10, 0.46, 0), UDim2.new(1, -20, 0.36, 0))
+	cards.frame.Visible = false
+
+	-- the words everyone thought of, which is the fun half of the reveal
+	sharedLabel = UiKit.label(frame, {
+		Size = UDim2.new(1, -20, 0.13, 0), Position = UDim2.new(0, 10, 0.84, 0),
+		TextWrapped = true, TextSize = 14, Visible = false, TextColor3 = UiKit.DIM,
 		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
 	})
 

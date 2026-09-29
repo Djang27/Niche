@@ -7,6 +7,7 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local UiKit = require(script.Parent.UiKit)
+local PlayerCards = require(script.Parent.PlayerCards)
 
 local localPlayer = Players.LocalPlayer
 
@@ -19,6 +20,8 @@ function WavelengthDial.new(config)
 	local api
 	local frame, roundLabel, roleLabel, leftLabel, rightLabel
 	local bar, marker, targetMarker, clueBox, submitButton, statusLabel, resultLabel
+	local cards
+	local lastClue = "" -- kept so the reveal can still show what was clued
 	local categoryButtons = {}
 	local revealMarkers = {}
 
@@ -94,6 +97,10 @@ function WavelengthDial.new(config)
 		leftLabel.Text = info.left
 		rightLabel.Text = info.right
 		resultLabel.Text = ""
+		resultLabel.Visible = true
+		cards.frame.Visible = false
+		cards.clear()
+		lastClue = ""
 		submitted = false
 		canDrag = false
 		myGuess = 0.5
@@ -132,6 +139,7 @@ function WavelengthDial.new(config)
 
 	local function onClue(info)
 		hideCategories()
+		lastClue = info.text
 		resultLabel.Text = ("<b>%s</b>\n\"%s\""):format(
 			UiKit.escape(info.category ~= "" and info.category or "No category"),
 			UiKit.escape(info.text))
@@ -180,22 +188,41 @@ function WavelengthDial.new(config)
 			end
 		end
 
-		local lines = {}
+		-- clue giver first: their score is the round's story
+		local rows = { {
+			userId = info.hinterId,
+			name = info.hinterName,
+			headline = "gave the clue",
+			trailing = ("+%d"):format(info.hinterPoints),
+			sub = ("total %d"):format(info.hinterTotal),
+			accent = info.hinterPoints > 0 and UiKit.GREEN or UiKit.RED,
+			emphasis = info.hinterPoints >= 3,
+		} }
 		for _, row in ipairs(info.rows) do
-			table.insert(lines, ("%s  +%d  (%d)"):format(
-				UiKit.escape(row.name), row.points, row.total))
+			table.insert(rows, {
+				userId = row.userId,
+				name = row.name,
+				headline = row.guess
+					and ("%.2f off"):format(math.abs(row.guess - info.target))
+					or "no guess",
+				trailing = ("+%d"):format(row.points),
+				sub = ("total %d"):format(row.total),
+				accent = row.points > 0 and UiKit.GREEN or UiKit.DIM,
+				emphasis = row.points >= 4,
+			})
 		end
-		table.insert(lines, ("<b>%s</b> gave the clue  +%d  (%d)"):format(
-			UiKit.escape(info.hinterName), info.hinterPoints, info.hinterTotal))
+
+		resultLabel.Visible = false
+		cards.frame.Visible = true
+		cards.show(rows, "Nobody guessed")
 
 		if config.coop and info.roomTotal then
-			roleLabel.Text = ("The room is on %d"):format(info.roomTotal)
+			roleLabel.Text = ('"%s"   the room is on %d'):format(lastClue, info.roomTotal)
 			roleLabel.TextColor3 = UiKit.WHITE
 		else
-			roleLabel.Text = ("Clue giver earned %d, the guessers' average"):format(info.hinterPoints)
+			roleLabel.Text = ('"%s"   clue giver earned %d'):format(lastClue, info.hinterPoints)
 			roleLabel.TextColor3 = info.hinterPoints > 0 and UiKit.GREEN or UiKit.RED
 		end
-		resultLabel.Text = table.concat(lines, "\n")
 	end
 
 	function self.onEvent(kind, payload)
@@ -222,6 +249,10 @@ function WavelengthDial.new(config)
 		rightLabel.Text = ""
 		statusLabel.Text = ""
 		resultLabel.Text = ""
+		resultLabel.Visible = true
+		cards.clear()
+		cards.frame.Visible = false
+		lastClue = ""
 		hideCategories()
 		clueBox.Visible = false
 		submitButton.Visible = false
@@ -328,6 +359,11 @@ function WavelengthDial.new(config)
 			Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.66, 0),
 			TextScaled = true, Font = Enum.Font.GothamMedium, TextColor3 = UiKit.YELLOW, Text = "",
 		})
+
+		-- takes over the lower half at the reveal, where the clue box and categories were
+		cards = PlayerCards.new(frame,
+			UDim2.new(0, 10, 0.42, 0), UDim2.new(1, -20, 0.55, 0))
+		cards.frame.Visible = false
 
 		resultLabel = UiKit.label(frame, {
 			Size = UDim2.new(1, -20, 0.2, 0), Position = UDim2.new(0, 10, 0.75, 0),

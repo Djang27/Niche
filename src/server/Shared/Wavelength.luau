@@ -205,6 +205,7 @@ function Wavelength.newRotatingMode(config)
 		local rows = {}
 		for _, row in ipairs(scored) do
 			table.insert(rows, {
+				userId = row.player.UserId, -- the reveal shows avatars and banners
 				name = row.player.DisplayName,
 				guess = row.guess,
 				points = row.points,
@@ -215,6 +216,7 @@ function Wavelength.newRotatingMode(config)
 		ctx.send("reveal", {
 			target = target,
 			rows = rows,
+			hinterId = hinter.UserId,
 			hinterName = hinter.DisplayName,
 			hinterPoints = hinterPoints,
 			hinterTotal = ctx.scoreOf(hinter),

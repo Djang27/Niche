@@ -116,8 +116,10 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   `show(rows, emptyText)` / `clear()`. Rows are mode-agnostic:
   `{ userId, name, headline, trailing, sub, accent, emphasis }`, so each mode maps its own reveal
   payload in. Rows appear staggered and `emphasis` flashes the outline, which is how rare tiers
-  land. A reveal payload therefore needs `userId`, not just a display name. Niche uses it; the other
-  modes still render plain text and can adopt it the same way.
+  land. A reveal payload therefore needs `userId`, not just a display name. Used by Niche, Deep Dive
+  and both rotating Wavelength modes. **Wavelength Teams deliberately does not**: its reveal is
+  team-level, so four player cards showing identical team scores would reintroduce exactly the noise
+  `scoreboard(ctx)` exists to avoid.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
 - `Modes/DeepDive.luau`: type an answer, press Enter, repeat against a clock. Each one round-trips
   through ModeRequest and only appears once the server accepts it, showing the canonical spelling
@@ -202,7 +204,7 @@ ModeRequest (returns status, canonicalAnswer, displayText; status is valid | sug
 
 Wavelength's kinds: "round", "target" (clue giver only), "clue" and "reveal" (server -> client), plus
 "clue" and "guess" (client -> server). Teams sends table payloads because its messages carry more
-fields; Solo and Co-op send positional arguments.
+fields. Solo and Co-op send tables too since the rotation rework - the older positional form is gone.
 
 Deep Dive's kinds: "round" and "reveal" (server -> client); "done", "resume" and "remove" on
 ModeEvent; and "word" on **ModeRequest**, returning status (ok | dupe | full | unknown | closed) plus

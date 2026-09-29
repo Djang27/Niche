@@ -129,6 +129,7 @@ function DeepDive.runRound(ctx, round)
 		end
 		ctx.award(p, unique)
 		table.insert(rows, {
+			userId = p.UserId, -- the reveal shows their avatar and banner
 			name = p.DisplayName,
 			words = #list,
 			unique = unique,
