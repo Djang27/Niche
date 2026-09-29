@@ -227,9 +227,17 @@ nothing should hardcode a specific game outside its own module.
 1. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them. Blocked on
    real players generating data, not on code.
 2. Data-driven tiers from real answer frequency. Same blocker as 1.
-3. More Niche categories. The ten lists skew heavily to food and nature - there is no pop culture at
-   all, while Wavelength's category pool already names the subjects players expect. Pure data, no
-   code changes, and varied prompts are what make the answer log worth mining for 1 and 2.
+3. Grow the lists. Two separate needs, both pure data with no code changes:
+   - **Depth.** Deep Dive draws `players * 10` answers per round, so a list wants ~200 entries for
+     answers to stay findable and collisions to stay interesting. Current names: Cities 193,
+     Countries 182, Foods 175, Animals 165, Jobs 140, Sports 116. Below `MIN_LIST_SIZE` 110 and
+     excluded: Instruments 69, Fruits 65, Vegetables 61, PizzaToppings 33. Pizza toppings may simply
+     be too small a domain to ever qualify, and that is fine - the threshold handles it.
+   - **Breadth.** The ten lists skew heavily to food and nature with no pop culture at all, while
+     Wavelength's category pool already names the subjects players expect (Movies, Music, Video
+     games, Vehicles, Clothing). A new list needs no code, just a module in `Shared/Lists`.
+   Do not guess what is missing: Deep Dive logs every rejected answer, so `AnswerLog.report()` after
+   real sessions names the genuine answers the lists lack.
 4. Ranked-lite: rating per player (pairwise Elo scaled by opponent count), ranks in lobby, global
    leaderboard. Private servers and matches under 3 players do not count. Deferred until there are
    real players to calibrate against - it is also the first feature to write persistent,
