@@ -15,7 +15,8 @@ local yourLabel, statusLabel, resultLabel
 
 local myWords = {}
 local maxWords = 20
-local open = false
+local roundActive = false -- the round is still accepting words
+local iAmDone = false     -- I pressed Done; reversible while roundActive
 local phaseId = 0
 
 ---------------------------------------------------------------- helpers
@@ -40,7 +41,7 @@ end
 
 local function addWord()
 	local text = input.Text
-	if not open or text == "" then return end
+	if not roundActive or iAmDone or text == "" then return end
 	if #myWords >= maxWords then
 		statusLabel.Text = "That's the limit"
 		return
@@ -63,13 +64,24 @@ local function addWord()
 	input:CaptureFocus()
 end
 
-local function finish()
-	if not open then return end
-	open = false
-	api.send("done")
-	input.TextEditable = false
-	doneButton.Visible = false
-	statusLabel.Text = "Done, waiting for the others..."
+-- Done is a toggle, not a one-way door. Tapping it by mistake used to cost you the
+-- whole round with no way back.
+local function setDone(state)
+	if not roundActive then return end
+	iAmDone = state
+	if iAmDone then
+		api.send("done")
+		input.TextEditable = false
+		doneButton.Text = "Keep typing"
+		doneButton.BackgroundColor3 = UiKit.GRAY
+		statusLabel.Text = ("Done with %d. Tap to come back"):format(#myWords)
+	else
+		api.send("resume")
+		input.TextEditable = true
+		doneButton.Text = "Done"
+		doneButton.BackgroundColor3 = UiKit.GREEN
+		input:CaptureFocus()
+	end
 end
 
 ---------------------------------------------------------------- server messages
@@ -79,10 +91,13 @@ local function onRound(info)
 	categoryLabel.Text = info.category
 	maxWords = info.maxWords or 20
 	myWords = {}
-	open = true
+	roundActive = true
+	iAmDone = false
 	input.Text = ""
 	input.TextEditable = true
 	doneButton.Visible = true
+	doneButton.Text = "Done"
+	doneButton.BackgroundColor3 = UiKit.GREEN
 	resultLabel.Text = ""
 	paintWords()
 	startTimer(info.seconds, "Type away")
@@ -90,7 +105,8 @@ end
 
 local function onReveal(info)
 	phaseId += 1
-	open = false
+	roundActive = false
+	iAmDone = false
 	input.TextEditable = false
 	doneButton.Visible = false
 	statusLabel.Text = ""
@@ -118,7 +134,8 @@ end
 
 function DeepDive.reset()
 	phaseId += 1
-	open = false
+	roundActive = false
+	iAmDone = false
 	myWords = {}
 	roundLabel.Text = ""
 	categoryLabel.Text = "Get ready..."
@@ -174,7 +191,9 @@ function DeepDive.build(parent, modeApi)
 		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
 	})
 
-	doneButton.Activated:Connect(finish)
+	doneButton.Activated:Connect(function()
+		setDone(not iAmDone)
+	end)
 	input.FocusLost:Connect(function(enterPressed)
 		if enterPressed then addWord() end
 	end)

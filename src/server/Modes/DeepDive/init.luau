@@ -81,9 +81,12 @@ function DeepDive.runRound(ctx, round)
 		maxWords = MAX_WORDS,
 	})
 
+	-- end as soon as nobody can or wants to add more: pressed Done, or hit the cap.
+	-- Waiting out the clock for one idle player is the most annoying way to lose 45s.
 	ctx.waitUntil(WRITE_TIME, function()
 		for _, p in ipairs(ctx.players()) do
-			if not done[p] then
+			local typed = order[p] and #order[p] or 0
+			if not done[p] and typed < MAX_WORDS then
 				return false
 			end
 		end
@@ -198,6 +201,11 @@ function DeepDive.onEvent(_, player, kind, value)
 	elseif kind == "done" then
 		if not accepting then return end
 		done[player] = true
+	elseif kind == "resume" then
+		-- Done is reversible while the round is live. Hitting it by accident and being
+		-- locked out for the rest of the round is a miserable way to lose a round.
+		if not accepting then return end
+		done[player] = nil
 	end
 end
 
