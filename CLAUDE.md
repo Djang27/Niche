@@ -39,13 +39,17 @@ src/server/ (-> ServerScriptService)
 - `Shared/Lists/*.luau`: one module per category. Pure data. These four live in `Shared/` rather
   than under Niche because Deep Dive validates its words against the same lists - a mode may never
   reach into another mode, so anything two games need belongs here.
-- `Modes/DeepDive/init.luau`: a category appears, everyone types related words at once, and you
-  score 1 point per word nobody else wrote. Matching is **normalisation only, never fuzzy** -
-  lowercase, strip punctuation, strip a plural `s` (skipping short words and `ss` endings). Edit
-  distance would merge "cat" and "bat", and stealing a point feels far worse than handing out a
-  spare one, so under-merging is the deliberate direction. Only the *duplicated* words are shown at
-  the reveal, batched through TextFilter by whoever typed each first, since TextService wants a real
-  author and one call per author beats one per word. 2+ players.
+- `Modes/DeepDive/init.luau`: a category appears, everyone races to name things in it, and you
+  score 1 point per answer nobody else wrote. Answers are checked against `Shared/Lists` via
+  `PromptData.ByList` + `AnswerJudge`, which is what stops "asdf" scoring - gibberish is guaranteed
+  unique, so with no real check the optimal strategy is to type nonsense. AnswerJudge also
+  canonicalises, so "dogs", "puppy" and "Dog" collapse to one entry and collide properly, and a
+  near miss is auto-corrected rather than rejected (you are typing against a clock, there is no
+  did-you-mean step). Because every accepted answer is a canonical list entry, this mode needs **no
+  TextFilter** - the same exemption Niche has. Rejected words are raw player text and go only to
+  AnswerLog. `MIN_LIST_SIZE` keeps thin lists out: a 4-player round draws `players * MAX_WORDS`
+  answers, and below roughly 3x that everything collides and nobody scores. 2+ players, 10 answers
+  each.
 - `Shared/TextFilter.luau`: TextService wrapper for any player-typed text other players will see.
   `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
@@ -95,8 +99,10 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   a real module with that name exists.
 - `UiKit.luau`: shared make/panel/label/button/escape helpers and the colour palette.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
-- `Modes/DeepDive.luau`: type a word, press Enter, repeat against a timer. Your own list is kept
-  on the client, so the server never sends your words back to you - only the scoring.
+- `Modes/DeepDive.luau`: type an answer, press Enter, repeat against a clock. Each one round-trips
+  through ModeRequest and only appears once the server accepts it, showing the canonical spelling
+  back. Accepted answers render as tappable rows - tap to drop one. Done is a toggle, not a one-way
+  door, so hitting it by accident does not cost the rest of the round.
 - `WavelengthDial.luau`: the dial screen shared by Solo and Co-op, as `new(config)`. Each call builds
   its own widgets and its own state, so the two modes never tread on each other. They render an
   identical round and differ only in how the reveal is worded.
@@ -164,8 +170,10 @@ Wavelength's kinds: "round", "target" (clue giver only), "clue" and "reveal" (se
 "clue" and "guess" (client -> server). Teams sends table payloads because its messages carry more
 fields; Solo and Co-op send positional arguments.
 
-Deep Dive's kinds: "round" and "reveal" (server -> client), "word" and "done" (client -> server).
-One "word" per entry as it is typed, so a dropped client loses at most its last word.
+Deep Dive's kinds: "round" and "reveal" (server -> client); "done", "resume" and "remove" on
+ModeEvent; and "word" on **ModeRequest**, returning status (ok | dupe | full | unknown | closed) plus
+the canonical spelling. Answering is a request, not an event, so the client only ever shows answers
+the server accepted - fire-and-forget let the on-screen list drift from the real score.
 
 ## List format
 ```lua
@@ -192,8 +200,9 @@ return {
   submission; never trust the client for scores or answers.
 - Any player-typed text that another player will see must go through `Shared/TextFilter.luau` first.
   Niche is exempt only because it broadcasts canonical answers from its own lists, never what was typed.
-  The moment a mode shows one player what another player wrote (Wavelength clues, related-words answers),
-  it goes through TextFilter. Those functions never return the original string - they mask it on failure -
+  The moment a mode shows one player what another player wrote (Wavelength clues), it goes through
+  TextFilter. Deep Dive is exempt for the same reason Niche is: it validates against the lists, so
+  everything it broadcasts is a canonical entry rather than typed text. Those functions never return the original string - they mask it on failure -
   so never "fall back" to the raw text when filtering errors.
 - Modes never create remotes, touch scores directly, or reach into the shell: everything goes through
   `ctx` and ModeEvent / ModeRequest. Keeping that boundary is what makes adding a game cheap.

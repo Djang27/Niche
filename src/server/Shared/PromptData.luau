@@ -19,6 +19,11 @@ local RECENT_LIMIT = 20      -- a prompt won't come back until this many others 
 
 PromptData.Prompts = {}
 
+-- The whole of each list as one answer set, keyed by list id. Prompts slice a list by tag;
+-- this is the unsliced version, for modes that hand players a category rather than a prompt
+-- (Deep Dive). Shaped like a prompt on purpose, so AnswerJudge can check against it directly.
+PromptData.ByList = {}
+
 ---------------------------------------------------------------- building
 
 local function hasTag(item, tag)
@@ -60,6 +65,23 @@ local function addList(listId, list)
 			table.insert(items, item)
 		end
 	end
+
+	-- the unsliced list, for category-style modes
+	local allAnswers, allAliases = {}, {}
+	for _, item in ipairs(items) do
+		allAnswers[item.name] = item.tier
+		for _, a in ipairs(item.aliases or {}) do
+			allAliases[string.lower(a)] = item.name
+		end
+	end
+	PromptData.ByList[listId] = {
+		id = "list:" .. listId, -- namespaced so its answer-log data stays separate from prompts
+		list = listId,
+		noun = list.noun,
+		answers = allAnswers,
+		aliases = allAliases,
+		count = #items,
+	}
 
 	-- normal prompts: every item, or only items with a tag
 	for _, p in ipairs(list.prompts or {}) do

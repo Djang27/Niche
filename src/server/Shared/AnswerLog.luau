@@ -255,13 +255,19 @@ function AnswerLog.report(filter, topN)
 	end
 	topN = topN or 10
 
-	for _, prompt in ipairs(PromptData.Prompts) do
-		if not filter or prompt.text:lower():find(filter:lower(), 1, true) then
+	local targets = table.clone(PromptData.Prompts)
+	for _, entry in pairs(PromptData.ByList) do
+		table.insert(targets, entry)
+	end
+
+	for _, prompt in ipairs(targets) do
+		local label = prompt.text or ("all of " .. tostring(prompt.list))
+		if not filter or label:lower():find(filter:lower(), 1, true) then
 			local ok, data = pcall(function()
 				return store:GetAsync(keyFor(prompt.id))
 			end)
 			if ok and data and (data.plays or 0) > 0 then
-				print(("\n=== %s  (%d plays, %d player-rounds)"):format(prompt.text, data.plays, data.seen or 0))
+				print(("\n=== %s  (%d plays, %d player-rounds)"):format(label, data.plays, data.seen or 0))
 
 				print("  answered:")
 				for _, e in ipairs(sortedPairs(data.accepted, topN)) do
