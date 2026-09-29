@@ -10,7 +10,7 @@ Menu-based game: no characters spawn (Players.CharacterAutoLoads = false), all U
 
 Niche is a collection of party games sharing one lobby, so the code is split into a shell and
 swappable modes. "Niche" is both the place name and the name of the first mode. Wavelength is built
-(Solo / Teams / Co-op), and so is Brainstorm, the name-what-others-will-not game.
+(Solo / Teams / Co-op), and so is Deep Dive, the name-what-others-will-not game.
 
 ## Workflow
 - Code lives in `src/`, synced into Roblox Studio live by Rojo (`rojo serve` + Rojo plugin connected).
@@ -37,7 +37,7 @@ src/server/ (-> ServerScriptService)
   `require(game.ServerScriptService.Modes.Niche.AnswerLog).report()`. Owner-only diagnostics: the
   rejected bucket is raw player text and must never reach a client unfiltered.
 - `Modes/Niche/Lists/*.luau`: one module per category. Pure data.
-- `Modes/Brainstorm/init.luau`: a category appears, everyone types related words at once, and you
+- `Modes/DeepDive/init.luau`: a category appears, everyone types related words at once, and you
   score 1 point per word nobody else wrote. Matching is **normalisation only, never fuzzy** -
   lowercase, strip punctuation, strip a plural `s` (skipping short words and `ss` endings). Edit
   distance would merge "cat" and "bat", and stealing a point feels far worse than handing out a
@@ -93,7 +93,7 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   a real module with that name exists.
 - `UiKit.luau`: shared make/panel/label/button/escape helpers and the colour palette.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
-- `Modes/Brainstorm.luau`: type a word, press Enter, repeat against a timer. Your own list is kept
+- `Modes/DeepDive.luau`: type a word, press Enter, repeat against a timer. Your own list is kept
   on the client, so the server never sends your words back to you - only the scoring.
 - `WavelengthDial.luau`: the dial screen shared by Solo and Co-op, as `new(config)`. Each call builds
   its own widgets and its own state, so the two modes never tread on each other. They render an
@@ -162,7 +162,7 @@ Wavelength's kinds: "round", "target" (clue giver only), "clue" and "reveal" (se
 "clue" and "guess" (client -> server). Teams sends table payloads because its messages carry more
 fields; Solo and Co-op send positional arguments.
 
-Brainstorm's kinds: "round" and "reveal" (server -> client), "word" and "done" (client -> server).
+Deep Dive's kinds: "round" and "reveal" (server -> client), "word" and "done" (client -> server).
 One "word" per entry as it is typed, so a dropped client loses at most its last word.
 
 ## List format
@@ -210,7 +210,7 @@ return {
 ## Roadmap (rough order)
 Done: answer logging to DataStore; the shell/mode split; `Shared/TextFilter.luau`; the
 menu -> modes -> lobby screens; all three Wavelength variants (Solo / Teams / Co-op) with category
-picks, the mode-group submenu, and the `matchSummary` podium hook; Brainstorm.
+picks, the mode-group submenu, and the `matchSummary` podium hook; Deep Dive.
 The planned games below are provisional - the owner expects to swap them out and add others, so
 nothing should hardcode a specific game outside its own module.
 1. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them. Blocked on

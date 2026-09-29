@@ -1,11 +1,11 @@
--- ModuleScript: StarterPlayerScripts > Modes > Brainstorm
+-- ModuleScript: StarterPlayerScripts > Modes > DeepDive
 -- Type words against a timer. Your own list lives on this client, so the server only ever
 -- sends back the scoring, never your words.
 
 local UiKit = require(script.Parent.Parent.UiKit)
 
-local Brainstorm = {
-	name = "Brainstorm",
+local DeepDive = {
+	name = "Deep Dive",
 	blurb = "Score only what nobody else thought of",
 }
 
@@ -108,7 +108,7 @@ local function onReveal(info)
 	resultLabel.Text = table.concat(lines, "\n")
 end
 
-function Brainstorm.onEvent(kind, payload)
+function DeepDive.onEvent(kind, payload)
 	if kind == "round" then
 		onRound(payload)
 	elseif kind == "reveal" then
@@ -116,7 +116,7 @@ function Brainstorm.onEvent(kind, payload)
 	end
 end
 
-function Brainstorm.reset()
+function DeepDive.reset()
 	phaseId += 1
 	open = false
 	myWords = {}
@@ -131,7 +131,7 @@ end
 
 ---------------------------------------------------------------- build
 
-function Brainstorm.build(parent, modeApi)
+function DeepDive.build(parent, modeApi)
 	api = modeApi
 	frame = UiKit.panel(parent)
 
@@ -183,4 +183,4 @@ function Brainstorm.build(parent, modeApi)
 	return frame
 end
 
-return Brainstorm
+return DeepDive

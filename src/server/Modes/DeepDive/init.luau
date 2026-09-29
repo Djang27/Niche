@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Modes > Brainstorm
+-- ModuleScript: ServerScriptService > Modes > DeepDive
 --
 -- A category appears and everyone types as many related words as they can at once.
 -- You score 1 point per word nobody else wrote. Anything two people both thought of is
@@ -11,8 +11,8 @@
 local Categories = require(script.Parent.Parent.Shared.Categories)
 local TextFilter = require(script.Parent.Parent.Shared.TextFilter)
 
-local Brainstorm = {
-	name = "Brainstorm",
+local DeepDive = {
+	name = "Deep Dive",
 	blurb = "Score only what nobody else thought of",
 	minPlayers = 2, -- with one player every word is unique, so there is no game
 	rounds = 3,
@@ -57,7 +57,7 @@ end
 
 ---------------------------------------------------------------- match hooks
 
-function Brainstorm.beginMatch(ctx)
+function DeepDive.beginMatch(ctx)
 	accepting = false
 	currentCategory = nil
 	order, seen, firstBy, done = {}, {}, {}, {}
@@ -66,7 +66,7 @@ function Brainstorm.beginMatch(ctx)
 	ctx.rounds = #categories
 end
 
-function Brainstorm.runRound(ctx, round)
+function DeepDive.runRound(ctx, round)
 	currentCategory = categories[round]
 	if not currentCategory then return end
 
@@ -163,14 +163,14 @@ function Brainstorm.runRound(ctx, round)
 	task.wait(REVEAL_TIME)
 end
 
-function Brainstorm.endMatch()
+function DeepDive.endMatch()
 	accepting = false
 	currentCategory = nil
 	-- these are keyed by Player, so they must be dropped here and not only in playerLeft
 	order, seen, firstBy, done = {}, {}, {}, {}
 end
 
-function Brainstorm.playerLeft(_, player)
+function DeepDive.playerLeft(_, player)
 	order[player] = nil
 	seen[player] = nil
 	done[player] = nil
@@ -178,7 +178,7 @@ end
 
 ---------------------------------------------------------------- client messages
 
-function Brainstorm.onEvent(_, player, kind, value)
+function DeepDive.onEvent(_, player, kind, value)
 	if kind == "word" then
 		if not accepting then return end
 		if typeof(value) ~= "string" or #value > MAX_WORD_LEN then return end
@@ -201,4 +201,4 @@ function Brainstorm.onEvent(_, player, kind, value)
 	end
 end
 
-return Brainstorm
+return DeepDive
