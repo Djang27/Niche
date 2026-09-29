@@ -127,6 +127,14 @@ function DeepDive.runRound(ctx, round)
 				unique += 1
 			end
 		end
+		-- everyone sees everyone's answers at the reveal, marked by whether they scored.
+		-- Safe to broadcast without filtering: these are canonical list entries, never
+		-- what someone typed.
+		local answers = {}
+		for _, w in ipairs(list) do
+			table.insert(answers, { word = AnswerJudge.prettify(w), solo = counts[w] == 1 })
+		end
+
 		ctx.award(p, unique)
 		table.insert(rows, {
 			userId = p.UserId, -- the reveal shows their avatar and banner
@@ -134,6 +142,7 @@ function DeepDive.runRound(ctx, round)
 			words = #list,
 			unique = unique,
 			total = ctx.scoreOf(p),
+			answers = answers,
 		})
 	end
 	table.sort(rows, function(a, b)

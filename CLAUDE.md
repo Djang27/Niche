@@ -108,6 +108,12 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   grows text to fill its box, so a one-word label rendered huge and a long one tiny, and the same
   label changed size between rounds. Labels cap at `title` unless they pass `max`; buttons and
   fields cap at `heading`. Only true display text (GothamBlack titles) opts up to `display`.
+  Also owns screen size: `isCompact()`, `onViewport(fn)` and `fit(frame, wide, tall)`. A phone is not
+  a small desktop - 0.5 x 0.6 of a laptop is a comfortable card, the same fractions on a phone are a
+  postage stamp. `panel` therefore uses `fit`, and because every child is positioned in scale units
+  they all grow with it, so there is no per-screen layout work. Buttons carry a `UISizeConstraint`
+  minimum so touch targets stay finger-sized. Anything positioned *outside* a panel (the score strip,
+  the waiting footer) must subscribe to `onViewport` itself or it will overlap on a phone.
 - `Cosmetics.luau`: how each cosmetic id looks. Ids must match `Shared/Cosmetics` exactly; an
   unknown id falls back rather than erroring, so a player wearing something this client has not
   heard of still renders.
@@ -121,10 +127,14 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   team-level, so four player cards showing identical team scores would reintroduce exactly the noise
   `scoreboard(ctx)` exists to avoid.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
-- `Modes/DeepDive.luau`: type an answer, press Enter, repeat against a clock. Each one round-trips
+- `Modes/DeepDive.luau`: type an answer and submit, repeat against a clock. Each one round-trips
   through ModeRequest and only appears once the server accepts it, showing the canonical spelling
-  back. Accepted answers render as tappable rows - tap to drop one. Done is a toggle, not a one-way
-  door, so hitting it by accident does not cost the rest of the round.
+  back. Accepted answers render as tappable rows - tap to drop one. **One adaptive button** does
+  three jobs: "Submit" while the box has text, "Done" when it is empty, "Keep going" once done - on
+  a phone the keyboard's return key is fiddly, so submitting must not depend on it. A meter shows
+  how full your list is so the cap is visible rather than a surprise. The reveal shows **everyone's
+  answers**, bright if only they had it and dim if someone matched - the dim ones are the shared
+  ones, which is why there is no separate "shared words" line.
 - `WavelengthDial.luau`: the dial screen shared by Solo and Co-op, as `new(config)`. Each call builds
   its own widgets and its own state, so the two modes never tread on each other. They render an
   identical round and differ only in how the reveal is worded.
@@ -205,6 +215,9 @@ ModeRequest (returns status, canonicalAnswer, displayText; status is valid | sug
 Wavelength's kinds: "round", "target" (clue giver only), "clue" and "reveal" (server -> client), plus
 "clue" and "guess" (client -> server). Teams sends table payloads because its messages carry more
 fields. Solo and Co-op send tables too since the rotation rework - the older positional form is gone.
+
+Deep Dive's reveal row carries `answers` ({ word, solo }) so every player's list can be shown;
+those are canonical list entries, so they need no filtering.
 
 Deep Dive's kinds: "round" and "reveal" (server -> client); "done", "resume" and "remove" on
 ModeEvent; and "word" on **ModeRequest**, returning status (ok | dupe | full | unknown | closed) plus

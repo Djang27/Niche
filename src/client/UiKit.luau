@@ -6,6 +6,8 @@
 
 local TweenService = game:GetService("TweenService")
 
+local camera = workspace.CurrentCamera
+
 local UiKit = {}
 
 local HOVER = TweenInfo.new(0.12, Enum.EasingStyle.Quad)
@@ -42,6 +44,37 @@ UiKit.TEXT = {
 	body = 16,
 	small = 13,
 }
+
+---------------------------------------------------------------- screen size
+
+-- A phone is not a small desktop. 0.5 x 0.6 of a laptop is a comfortable card; the same
+-- fractions on a phone are a postage stamp with unreadable text inside. Panels therefore
+-- take a much larger share of a small screen, and since every child is positioned in
+-- scale units they all grow with it - no per-screen layout work.
+function UiKit.isCompact()
+	local v = camera.ViewportSize
+	return v.X < 900 or math.min(v.X, v.Y) < 500
+end
+
+-- calls fn(compact) now and whenever the viewport changes
+function UiKit.onViewport(fn)
+	local function apply()
+		fn(UiKit.isCompact())
+	end
+	apply()
+	camera:GetPropertyChangedSignal("ViewportSize"):Connect(apply)
+end
+
+-- keeps a centred frame sized for the current screen
+function UiKit.fit(frame, wide, tall)
+	UiKit.onViewport(function(compact)
+		local w = compact and math.min(0.96, wide * 1.85) or wide
+		local h = compact and math.min(0.92, tall * 1.45) or tall
+		frame.Size = UDim2.fromScale(w, h)
+		frame.Position = UDim2.fromScale((1 - w) / 2, (1 - h) / 2)
+	end)
+	return frame
+end
 
 ---------------------------------------------------------------- primitives
 
@@ -91,9 +124,9 @@ end
 
 function UiKit.panel(parent)
 	local f = UiKit.make("Frame", {
-		Size = UDim2.fromScale(0.5, 0.6), Position = UDim2.fromScale(0.25, 0.2),
 		BackgroundColor3 = UiKit.PANEL, Visible = false, Parent = parent,
 	})
+	UiKit.fit(f, 0.5, 0.6)
 	return UiKit.surface(UiKit.corner(f, 14))
 end
 
@@ -117,6 +150,9 @@ function UiKit.button(parent, text, color, size, pos, max)
 		Size = size, Position = pos, Text = text, TextScaled = true,
 		Font = Enum.Font.GothamBold, TextColor3 = UiKit.WHITE, BackgroundColor3 = color, Parent = parent,
 	})
+	-- a finger needs ~44px; scale-sized buttons fall well under that on a phone
+	UiKit.make("UISizeConstraint", { MinSize = Vector2.new(0, 38), Parent = b })
+
 	local stroke = UiKit.make("UIStroke", {
 		Color = UiKit.WHITE, Thickness = 1, Transparency = 0.86, Parent = b,
 	})

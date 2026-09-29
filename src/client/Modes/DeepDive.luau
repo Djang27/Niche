@@ -11,11 +11,12 @@ local DeepDive = {
 }
 
 local api
-local frame, roundLabel, categoryLabel, input, doneButton
-local wordsFrame, statusLabel, sharedLabel
+local frame, roundLabel, categoryLabel, input, actionButton
+local wordsFrame, statusLabel, answersLabel
+local meterFill, meterText
 local cards
 
-local myWords = {}        -- display text, in server order
+local myWords = {}
 local maxWords = 10
 local roundActive = false
 local iAmDone = false
@@ -26,6 +27,34 @@ local phaseId = 0
 
 local rows = {}
 
+local function paintMeter()
+	local n = #myWords
+	meterFill.Size = UDim2.fromScale(maxWords > 0 and math.min(n / maxWords, 1) or 0, 1)
+	meterFill.BackgroundColor3 = n >= maxWords and UiKit.GREEN or UiKit.ACCENT
+	meterText.Text = ("%d / %d"):format(n, maxWords)
+end
+
+-- One button, three jobs. On a phone the keyboard's return key is fiddly and easy to
+-- miss, so the same control submits the answer you are typing, then finishes the round
+-- once the box is empty.
+local function paintButton()
+	if not roundActive then
+		actionButton.Visible = false
+		return
+	end
+	actionButton.Visible = true
+	if iAmDone then
+		actionButton.Text = "Keep going"
+		actionButton.BackgroundColor3 = UiKit.GRAY
+	elseif input.Text ~= "" then
+		actionButton.Text = "Submit"
+		actionButton.BackgroundColor3 = UiKit.ACCENT
+	else
+		actionButton.Text = "Done"
+		actionButton.BackgroundColor3 = UiKit.GREEN
+	end
+end
+
 local function paintWords()
 	for _, r in ipairs(rows) do
 		r:Destroy()
@@ -34,7 +63,7 @@ local function paintWords()
 
 	for i, word in ipairs(myWords) do
 		local b = UiKit.button(wordsFrame, ("%d.   %s      \u{2715}"):format(i, word),
-			UiKit.FIELD, UDim2.new(1, -12, 0, 30), UDim2.new())
+			UiKit.FIELD, UDim2.new(1, -12, 0, 32), UDim2.new())
 		b.TextScaled = false
 		b.TextSize = 16
 		b.Font = Enum.Font.Gotham
@@ -47,6 +76,7 @@ local function paintWords()
 			api.send("remove", i)
 			table.remove(myWords, i)
 			paintWords()
+			paintMeter()
 		end)
 		table.insert(rows, b)
 	end
@@ -79,6 +109,7 @@ local function addWord()
 		table.insert(myWords, display)
 		input.Text = ""
 		paintWords()
+		paintMeter()
 	elseif status == "dupe" then
 		statusLabel.Text = ("You already have %s"):format(display or "that")
 		input.Text = ""
@@ -87,26 +118,23 @@ local function addWord()
 	else
 		statusLabel.Text = ("\"%s\" isn't on the list"):format(text)
 	end
+	paintButton()
 	input:CaptureFocus()
 end
 
--- Done is a toggle, not a one-way door
 local function setDone(state)
 	if not roundActive then return end
 	iAmDone = state
 	if iAmDone then
 		api.send("done")
 		input.TextEditable = false
-		doneButton.Text = "Keep going"
-		doneButton.BackgroundColor3 = UiKit.GRAY
 		statusLabel.Text = ("Done with %d. Tap to come back"):format(#myWords)
 	else
 		api.send("resume")
 		input.TextEditable = true
-		doneButton.Text = "Done"
-		doneButton.BackgroundColor3 = UiKit.GREEN
 		input:CaptureFocus()
 	end
+	paintButton()
 	paintWords()
 end
 
@@ -122,14 +150,13 @@ local function onRound(info)
 	checking = false
 	input.Text = ""
 	input.TextEditable = true
-	doneButton.Visible = true
-	doneButton.Text = "Done"
-	doneButton.BackgroundColor3 = UiKit.GREEN
 	wordsFrame.Visible = true
 	cards.frame.Visible = false
 	cards.clear()
-	sharedLabel.Visible = false
+	answersLabel.Visible = false
 	paintWords()
+	paintMeter()
+	paintButton()
 	startTimer(info.seconds, "Name as many as you can")
 end
 
@@ -138,20 +165,20 @@ local function onReveal(info)
 	roundActive = false
 	iAmDone = false
 	input.TextEditable = false
-	doneButton.Visible = false
+	actionButton.Visible = false
 	wordsFrame.Visible = false
 	cards.frame.Visible = true
+	answersLabel.Visible = true
 	statusLabel.Text = ""
 
-	-- the round's best score gets the flash
 	local best = 0
 	for _, row in ipairs(info.rows) do
 		best = math.max(best, row.unique)
 	end
 
-	local rows = {}
+	local list = {}
 	for _, row in ipairs(info.rows) do
-		table.insert(rows, {
+		table.insert(list, {
 			userId = row.userId,
 			name = row.name,
 			headline = ("%d unique"):format(row.unique),
@@ -161,14 +188,23 @@ local function onReveal(info)
 			emphasis = best > 0 and row.unique == best,
 		})
 	end
-	cards.show(rows, "Nobody wrote anything")
+	cards.show(list, "Nobody wrote anything")
 
-	sharedLabel.Visible = info.shared ~= ""
-	sharedLabel.Text = info.shared ~= ""
-		and ("Everyone had these, so nobody scored them:  %s%s"):format(
-			info.shared,
-			info.sharedCount > 8 and (" (+%d more)"):format(info.sharedCount - 8) or "")
-		or ""
+	-- everyone's answers, bright if only they had it and dim if somebody matched them.
+	-- That replaces the old separate "shared words" line: the dim ones are the shared ones.
+	local blocks = {}
+	for _, row in ipairs(info.rows) do
+		local words = {}
+		for _, a in ipairs(row.answers or {}) do
+			table.insert(words, a.solo
+				and ('<font color="#ffffff">%s</font>'):format(UiKit.escape(a.word))
+				or ('<font color="#7d7d92">%s</font>'):format(UiKit.escape(a.word)))
+		end
+		table.insert(blocks, ("<b>%s</b>   %s"):format(
+			UiKit.escape(row.name),
+			#words > 0 and table.concat(words, ", ") or "nothing"))
+	end
+	answersLabel.Text = table.concat(blocks, "\n")
 end
 
 function DeepDive.onEvent(kind, payload)
@@ -188,13 +224,14 @@ function DeepDive.reset()
 	roundLabel.Text = ""
 	categoryLabel.Text = "Get ready..."
 	statusLabel.Text = ""
+	input.Text = ""
 	cards.clear()
 	cards.frame.Visible = false
-	sharedLabel.Visible = false
+	answersLabel.Visible = false
 	wordsFrame.Visible = true
-	input.Text = ""
-	doneButton.Visible = false
 	paintWords()
+	paintMeter()
+	paintButton()
 end
 
 ---------------------------------------------------------------- build
@@ -209,27 +246,42 @@ function DeepDive.build(parent, modeApi)
 	})
 
 	categoryLabel = UiKit.label(frame, {
-		Size = UDim2.new(1, -20, 0.13, 0), Position = UDim2.new(0, 10, 0.09, 0),
-		max = UiKit.TEXT.display, TextScaled = true, Font = Enum.Font.GothamBlack, Text = "Get ready...",
+		max = UiKit.TEXT.display, Size = UDim2.new(1, -20, 0.13, 0), Position = UDim2.new(0, 10, 0.08, 0),
+		TextScaled = true, Font = Enum.Font.GothamBlack, Text = "Get ready...",
 	})
 
 	input = UiKit.field(frame, {
-		Size = UDim2.new(0.66, -15, 0.11, 0), Position = UDim2.new(0, 10, 0.24, 0),
-		PlaceholderText = "An answer, then Enter...", Text = "",
+		Size = UDim2.new(0.62, -14, 0.11, 0), Position = UDim2.new(0, 10, 0.23, 0),
+		PlaceholderText = "An answer...", Text = "",
 	})
 
-	doneButton = UiKit.button(frame, "Done", UiKit.GREEN,
-		UDim2.new(0.34, -15, 0.11, 0), UDim2.new(0.66, 5, 0.24, 0))
-	doneButton.Visible = false
+	actionButton = UiKit.button(frame, "Done", UiKit.GREEN,
+		UDim2.new(0.38, -14, 0.11, 0), UDim2.new(0.62, 4, 0.23, 0))
+	actionButton.Visible = false
+
+	-- how full your list is, so the cap is visible rather than a surprise
+	local meterBack = UiKit.make("Frame", {
+		Size = UDim2.new(1, -20, 0.045, 0), Position = UDim2.new(0, 10, 0.36, 0),
+		BackgroundColor3 = UiKit.FIELD, Parent = frame,
+	})
+	UiKit.corner(meterBack, 6)
+	meterFill = UiKit.make("Frame", {
+		Size = UDim2.fromScale(0, 1), BackgroundColor3 = UiKit.ACCENT,
+		BorderSizePixel = 0, Parent = meterBack,
+	})
+	UiKit.corner(meterFill, 6)
+	meterText = UiKit.label(meterBack, {
+		Size = UDim2.fromScale(1, 1), TextSize = 13, Font = Enum.Font.GothamBold, Text = "",
+	})
 
 	statusLabel = UiKit.label(frame, {
-		Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.37, 0),
-		TextScaled = true, Font = Enum.Font.GothamMedium, TextColor3 = UiKit.YELLOW, Text = "",
+		Size = UDim2.new(1, -20, 0.06, 0), Position = UDim2.new(0, 10, 0.42, 0),
+		max = UiKit.TEXT.body, TextScaled = true, Font = Enum.Font.GothamMedium,
+		TextColor3 = UiKit.YELLOW, Text = "",
 	})
 
-	-- your answers, each tappable to drop it
 	wordsFrame = UiKit.make("ScrollingFrame", {
-		Size = UDim2.new(1, -20, 0.5, 0), Position = UDim2.new(0, 10, 0.46, 0),
+		Size = UDim2.new(1, -20, 0.48, 0), Position = UDim2.new(0, 10, 0.49, 0),
 		BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(),
 		Parent = frame,
@@ -239,23 +291,31 @@ function DeepDive.build(parent, modeApi)
 	})
 
 	cards = PlayerCards.new(frame,
-		UDim2.new(0, 10, 0.46, 0), UDim2.new(1, -20, 0.36, 0))
+		UDim2.new(0, 10, 0.49, 0), UDim2.new(1, -20, 0.22, 0))
 	cards.frame.Visible = false
 
-	-- the words everyone thought of, which is the fun half of the reveal
-	sharedLabel = UiKit.label(frame, {
-		Size = UDim2.new(1, -20, 0.13, 0), Position = UDim2.new(0, 10, 0.84, 0),
-		TextWrapped = true, TextSize = 14, Visible = false, TextColor3 = UiKit.DIM,
+	answersLabel = UiKit.label(frame, {
+		Size = UDim2.new(1, -20, 0.24, 0), Position = UDim2.new(0, 10, 0.73, 0),
+		TextWrapped = true, RichText = true, TextSize = 14, Visible = false,
 		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
 	})
 
-	doneButton.Activated:Connect(function()
-		setDone(not iAmDone)
+	actionButton.Activated:Connect(function()
+		if iAmDone then
+			setDone(false)
+		elseif input.Text ~= "" then
+			addWord()
+		else
+			setDone(true)
+		end
 	end)
 	input.FocusLost:Connect(function(enterPressed)
 		if enterPressed then addWord() end
 	end)
+	-- the button changes meaning as you type, so it has to follow the box
+	input:GetPropertyChangedSignal("Text"):Connect(paintButton)
 
+	paintMeter()
 	return frame
 end
 

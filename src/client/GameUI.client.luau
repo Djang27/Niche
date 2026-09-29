@@ -46,7 +46,6 @@ UiKit.backdrop(gui)
 -- visible running total for free instead of each one remembering to print one - and it
 -- stays up through the whole round rather than flashing past in a reveal.
 local scoreStrip = UiKit.surface(UiKit.corner(UiKit.make("Frame", {
-	Size = UDim2.fromScale(0.5, 0.055), Position = UDim2.fromScale(0.25, 0.135),
 	BackgroundColor3 = UiKit.PANEL, Visible = false, Parent = gui,
 }), 8))
 
@@ -58,9 +57,20 @@ local scoreLabel = UiKit.label(scoreStrip, {
 -- Sits below the panel, so it reads as a footer rather than competing with the game.
 local waitingLabel = UiKit.label(gui, {
 	Size = UDim2.fromScale(0.5, 0.045), Position = UDim2.fromScale(0.25, 0.815),
+	-- repositioned just below by onViewport
 	TextScaled = true, max = UiKit.TEXT.body, Font = Enum.Font.GothamMedium,
 	TextColor3 = UiKit.DIM, Visible = false, Text = "",
 })
+
+-- these bracket the panel, so they have to move when the panel grows
+UiKit.onViewport(function(compact)
+	local w = compact and 0.96 or 0.5
+	scoreStrip.Size = UDim2.fromScale(w, compact and 0.05 or 0.055)
+	scoreStrip.Position = UDim2.fromScale((1 - w) / 2, compact and 0.005 or 0.135)
+
+	waitingLabel.Size = UDim2.fromScale(w, 0.045)
+	waitingLabel.Position = UDim2.fromScale((1 - w) / 2, compact and 0.948 or 0.815)
+end)
 
 local function renderScore()
 	-- a mode may phrase it itself (Teams: "Red 14 - 9 Blue")
@@ -175,9 +185,9 @@ end)
 -- Wider than a normal panel because it holds a row of avatars rather than a column of
 -- text. Shown between the countdown and the first round.
 local introFrame = UiKit.surface(UiKit.corner(UiKit.make("Frame", {
-	Size = UDim2.fromScale(0.72, 0.52), Position = UDim2.fromScale(0.14, 0.24),
 	BackgroundColor3 = UiKit.PANEL, Visible = false, Parent = gui,
 }), 14))
+UiKit.fit(introFrame, 0.72, 0.52)
 
 UiKit.label(introFrame, {
 	Size = UDim2.new(1, -20, 0.14, 0), Position = UDim2.new(0, 10, 0.04, 0),
