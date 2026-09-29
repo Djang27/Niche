@@ -26,6 +26,10 @@ end)
 -- module with the same name exists it is picked up as playable and drops off this list.
 local PLANNED = { "Wavelength", "???", "???" }
 
+-- Running order on the modes grid. Matched against a mode's id, or a group's name for
+-- grouped games. Anything not listed falls in after these, alphabetically.
+local ORDER = { "Niche", "Wavelength", "DeepDive" }
+
 ---------------------------------------------------------------- base
 
 local gui = UiKit.make("ScreenGui", {
@@ -238,6 +242,16 @@ local function modeEntries()
 		end
 	end
 
+	table.sort(entries, function(a, b)
+		local ia = table.find(ORDER, a.id or a.label) or #ORDER + 1
+		local ib = table.find(ORDER, b.id or b.label) or #ORDER + 1
+		if ia ~= ib then
+			return ia < ib
+		end
+		return a.label < b.label
+	end)
+
+	-- placeholders always trail the real games
 	-- a planned name drops off once something real claims it, group or single mode
 	for _, name in ipairs(PLANNED) do
 		if not taken[name] then
@@ -252,11 +266,12 @@ end
 local groupFrame = UiKit.panel(gui)
 
 local groupTitle = UiKit.label(groupFrame, {
-	Size = UDim2.new(1, -20, 0.12, 0), Position = UDim2.new(0, 10, 0.04, 0),
+	Size = UDim2.new(1, -20, 0.11, 0), Position = UDim2.new(0, 10, 0.03, 0),
 	TextScaled = true, Font = Enum.Font.GothamBold, Text = "",
 })
+-- ends at 0.20, clear of the button grid that starts at 0.22
 local groupBlurb = UiKit.label(groupFrame, {
-	Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.17, 0),
+	Size = UDim2.new(1, -20, 0.055, 0), Position = UDim2.new(0, 10, 0.145, 0),
 	TextScaled = true, TextColor3 = UiKit.DIM, Text = "Pick a format",
 })
 
