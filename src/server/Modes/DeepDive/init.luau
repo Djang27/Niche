@@ -98,14 +98,17 @@ function DeepDive.runRound(ctx, round)
 
 	-- end as soon as nobody can or wants to add more, rather than waiting out the clock
 	ctx.waitUntil(WRITE_TIME, function()
+		local pending = {}
 		for _, p in ipairs(ctx.players()) do
 			local typed = order[p] and #order[p] or 0
 			if not done[p] and typed < MAX_WORDS then
-				return false
+				table.insert(pending, p)
 			end
 		end
-		return true
+		ctx.waitingOn(pending)
+		return #pending == 0
 	end)
+	ctx.waitingOn(nil)
 	accepting = false
 
 	local counts = {}

@@ -31,13 +31,17 @@ local lastCheck = {}
 
 ---------------------------------------------------------------- scoring
 
-local function everyoneAnswered(ctx)
+-- Returns how many players have yet to answer, and tells the shell who they are so the
+-- rest of the room knows why it is waiting instead of staring at a dead screen.
+local function stillAnswering(ctx)
+	local pending = {}
 	for _, p in ipairs(ctx.players()) do
 		if not submissions[p] then
-			return false
+			table.insert(pending, p)
 		end
 	end
-	return true
+	ctx.waitingOn(pending)
+	return #pending
 end
 
 local function scoreRound(ctx, prompt)
@@ -107,8 +111,9 @@ function Niche.runRound(ctx, round)
 	ctx.send("prompt", prompt.text, ANSWER_TIME, round, ctx.rounds)
 
 	ctx.waitUntil(ANSWER_TIME, function()
-		return everyoneAnswered(ctx)
+		return stillAnswering(ctx) == 0
 	end)
+	ctx.waitingOn(nil)
 
 	accepting = false
 	ctx.send("results", scoreRound(ctx, prompt))

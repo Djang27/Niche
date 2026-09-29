@@ -136,7 +136,13 @@ and the podium takes each row's rank from its score, so equal scores share a pla
 this replaced.
 Only `runRound` is required. `ctx` gives the mode: `players()`, `isPlaying(p)`, `send(kind, ...)`,
 `sendTo(player, kind, ...)` (for per-player secrets, e.g. Wavelength's target), `award(player, points)`,
-`scoreOf(player)`, `waitUntil(seconds, predicate)`, and `rounds` (a mode may shorten it in `beginMatch`).
+`scoreOf(player)`, `waitUntil(seconds, predicate)`, `waitingOn(pending)`, and `rounds` (a mode may
+shorten it in `beginMatch`).
+
+`waitingOn` takes the array of players who have not acted yet, or nil to clear. Call it from the wait
+predicate - that already works out who is outstanding - and the shell formats and replicates it so
+every game phrases it identically. Without it a round is dead air: you submit and cannot tell whether
+one person is still typing or three.
 
 `maxPlayers` caps a mode: the countdown refuses to start above it rather than quietly leaving
 someone out, and the lobby says so. Omit it for no cap.
@@ -155,7 +161,8 @@ reach the server half. The shell calls `reset()` when a match ends.
 ## State the client reads (attributes)
 - ReplicatedStorage: `GameState` ("Lobby" | "Countdown" | "InMatch" | "Podium"), `Countdown`, `HostUserId`,
   `ActiveMode` (module name of the mode currently loaded, e.g. "Niche"), `Scoreboard` (the running
-  score line a mode wants shown, or nil for the generic per-player strip)
+  score line a mode wants shown, or nil for the generic per-player strip), `Waiting` (who the round
+  is still waiting on, set via `ctx.waitingOn`)
 - Each Player: `Score` (running match total, set by `ctx.award` so the shell can keep it on screen
   without a remote), `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
   rather than browsing the menu or store). Only `InLobby` players count towards starting a match and

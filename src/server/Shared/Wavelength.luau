@@ -131,9 +131,11 @@ function Wavelength.newRotatingMode(config)
 
 		phase = "clue"
 		ctx.waitUntil(CLUE_TIME, function()
+			ctx.waitingOn(clue and {} or { hinter })
 			return clue ~= nil
 		end)
 		phase = nil
+		ctx.waitingOn(nil)
 
 		local shown
 		if clue then
@@ -152,14 +154,17 @@ function Wavelength.newRotatingMode(config)
 		if clue then
 			phase = "guess"
 			ctx.waitUntil(GUESS_TIME, function()
+				local pending = {}
 				for _, p in ipairs(ctx.players()) do
 					if p ~= hinter and not guesses[p] then
-						return false
+						table.insert(pending, p)
 					end
 				end
-				return true
+				ctx.waitingOn(pending)
+				return #pending == 0
 			end)
 			phase = nil
+			ctx.waitingOn(nil)
 		end
 
 		-- every guesser scores their own accuracy

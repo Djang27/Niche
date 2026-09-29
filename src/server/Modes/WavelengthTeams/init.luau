@@ -120,14 +120,17 @@ function WavelengthTeams.runRound(ctx, round)
 
 	phase = "clue"
 	ctx.waitUntil(CLUE_TIME, function()
+		local pending = {}
 		for team = 1, 2 do
 			if givers[team] and not clues[team] then
-				return false
+				table.insert(pending, givers[team])
 			end
 		end
-		return true
+		ctx.waitingOn(pending)
+		return #pending == 0
 	end)
 	phase = nil
+	ctx.waitingOn(nil)
 
 	local shown = {}
 	for team = 1, 2 do
@@ -154,18 +157,21 @@ function WavelengthTeams.runRound(ctx, round)
 	if anyClue then
 		phase = "guess"
 		ctx.waitUntil(GUESS_TIME, function()
+			local pending = {}
 			for team = 1, 2 do
 				if clues[team] then
 					for _, p in ipairs(members(ctx, team)) do
 						if p ~= givers[team] and not guesses[p] then
-							return false
+							table.insert(pending, p)
 						end
 					end
 				end
 			end
-			return true
+			ctx.waitingOn(pending)
+			return #pending == 0
 		end)
 		phase = nil
+		ctx.waitingOn(nil)
 	end
 
 	local roundPoints = { 0, 0 }

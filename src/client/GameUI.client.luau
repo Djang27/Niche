@@ -54,6 +54,13 @@ local scoreLabel = UiKit.label(scoreStrip, {
 	TextScaled = true, Font = Enum.Font.GothamBold, Text = "",
 })
 
+-- Sits below the panel, so it reads as a footer rather than competing with the game.
+local waitingLabel = UiKit.label(gui, {
+	Size = UDim2.fromScale(0.5, 0.045), Position = UDim2.fromScale(0.25, 0.815),
+	TextScaled = true, max = UiKit.TEXT.body, Font = Enum.Font.GothamMedium,
+	TextColor3 = UiKit.DIM, Visible = false, Text = "",
+})
+
 local function renderScore()
 	-- a mode may phrase it itself (Teams: "Red 14 - 9 Blue")
 	local custom = ReplicatedStorage:GetAttribute("Scoreboard")
@@ -563,6 +570,10 @@ local function render()
 	lobbyFrame.Visible = screen == "lobby"
 	podiumFrame.Visible = screen == "podium"
 	scoreStrip.Visible = screen == "game"
+
+	local waiting = ReplicatedStorage:GetAttribute("Waiting")
+	waitingLabel.Visible = screen == "game" and waiting ~= nil and waiting ~= ""
+	waitingLabel.Text = waiting or ""
 
 	-- only the active mode's screen is ever visible
 	for _, m in pairs(modes) do

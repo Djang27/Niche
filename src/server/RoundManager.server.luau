@@ -216,6 +216,34 @@ function ctx.scoreOf(player)
 	return scores[player] or 0
 end
 
+-- Who the round is still waiting for. Modes call this from their wait predicate, which
+-- already works out who has not acted. Formatting lives here so every game phrases it the
+-- same way, and so a mode cannot forget the count.
+function ctx.waitingOn(pending)
+	if not pending or #pending == 0 then
+		ReplicatedStorage:SetAttribute("Waiting", nil)
+		return
+	end
+
+	local total = #participantList()
+	local text
+	if #pending > 3 then
+		text = ("Waiting on %d players"):format(#pending)
+	else
+		local names = {}
+		for _, p in ipairs(pending) do
+			table.insert(names, p.DisplayName)
+		end
+		local last = table.remove(names)
+		text = #names > 0
+			and ("Waiting on %s and %s"):format(table.concat(names, ", "), last)
+			or ("Waiting on %s"):format(last)
+	end
+
+	ReplicatedStorage:SetAttribute("Waiting",
+		("%s   (%d/%d in)"):format(text, total - #pending, total))
+end
+
 -- waits up to `seconds`, stopping early once `predicate` is true.
 -- returns true if it stopped early.
 function ctx.waitUntil(seconds, predicate)
@@ -362,6 +390,7 @@ local function runMatch()
 			return false
 		end
 		mode.runRound(ctx, round)
+		ctx.waitingOn(nil) -- safety net, in case a mode forgot to clear it
 
 		-- a mode may phrase the running score its own way (Teams wants two team totals,
 		-- not four identical player totals). nil falls back to the per-player strip.
@@ -422,6 +451,7 @@ end
 
 local function endMatch()
 	ReplicatedStorage:SetAttribute("Scoreboard", nil)
+	ReplicatedStorage:SetAttribute("Waiting", nil)
 	if activeMode and activeMode.endMatch then
 		pcall(activeMode.endMatch, ctx)
 	end
