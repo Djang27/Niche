@@ -10,7 +10,7 @@ Menu-based game: no characters spawn (Players.CharacterAutoLoads = false), all U
 
 Niche is a collection of party games sharing one lobby, so the code is split into a shell and
 swappable modes. "Niche" is both the place name and the name of the first mode. Wavelength is built
-(Solo / Teams / Co-op); a "say words related to a topic" game is still planned.
+(Solo / Teams / Co-op), and so is Brainstorm, the name-what-others-will-not game.
 
 ## Workflow
 - Code lives in `src/`, synced into Roblox Studio live by Rojo (`rojo serve` + Rojo plugin connected).
@@ -37,6 +37,13 @@ src/server/ (-> ServerScriptService)
   `require(game.ServerScriptService.Modes.Niche.AnswerLog).report()`. Owner-only diagnostics: the
   rejected bucket is raw player text and must never reach a client unfiltered.
 - `Modes/Niche/Lists/*.luau`: one module per category. Pure data.
+- `Modes/Brainstorm/init.luau`: a category appears, everyone types related words at once, and you
+  score 1 point per word nobody else wrote. Matching is **normalisation only, never fuzzy** -
+  lowercase, strip punctuation, strip a plural `s` (skipping short words and `ss` endings). Edit
+  distance would merge "cat" and "bat", and stealing a point feels far worse than handing out a
+  spare one, so under-merging is the deliberate direction. Only the *duplicated* words are shown at
+  the reveal, batched through TextFilter by whoever typed each first, since TextService wants a real
+  author and one call per author beats one per word. 2+ players.
 - `Shared/TextFilter.luau`: TextService wrapper for any player-typed text other players will see.
   `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
@@ -86,6 +93,8 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   a real module with that name exists.
 - `UiKit.luau`: shared make/panel/label/button/escape helpers and the colour palette.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
+- `Modes/Brainstorm.luau`: type a word, press Enter, repeat against a timer. Your own list is kept
+  on the client, so the server never sends your words back to you - only the scoring.
 - `WavelengthDial.luau`: the dial screen shared by Solo and Co-op, as `new(config)`. Each call builds
   its own widgets and its own state, so the two modes never tread on each other. They render an
   identical round and differ only in how the reveal is worded.
@@ -153,6 +162,9 @@ Wavelength's kinds: "round", "target" (clue giver only), "clue" and "reveal" (se
 "clue" and "guess" (client -> server). Teams sends table payloads because its messages carry more
 fields; Solo and Co-op send positional arguments.
 
+Brainstorm's kinds: "round" and "reveal" (server -> client), "word" and "done" (client -> server).
+One "word" per entry as it is typed, so a dropped client loses at most its last word.
+
 ## List format
 ```lua
 return {
@@ -198,17 +210,20 @@ return {
 ## Roadmap (rough order)
 Done: answer logging to DataStore; the shell/mode split; `Shared/TextFilter.luau`; the
 menu -> modes -> lobby screens; all three Wavelength variants (Solo / Teams / Co-op) with category
-picks, the mode-group submenu, and the `matchSummary` podium hook.
+picks, the mode-group submenu, and the `matchSummary` podium hook; Brainstorm.
 The planned games below are provisional - the owner expects to swap them out and add others, so
 nothing should hardcode a specific game outside its own module.
 1. Playtest fixes (tiers, missing answers/aliases) - use `AnswerLog.report()` to find them. Blocked on
    real players generating data, not on code.
 2. Data-driven tiers from real answer frequency. Same blocker as 1.
-3. "Say words related to a topic" mode. Blocked on a design answer first: how to match free-form words
-   across players with no canonical list ("dog" vs "dogs" vs "Dog").
-4. Ranked-lite: rating per player (pairwise Elo scaled by opponent count), ranks in lobby, global leaderboard.
-   Private servers and matches under 3 players do not count. The first item here that is genuinely
-   unblocked and could just be built.
+3. More Niche categories. The ten lists skew heavily to food and nature - there is no pop culture at
+   all, while Wavelength's category pool already names the subjects players expect. Pure data, no
+   code changes, and varied prompts are what make the answer log worth mining for 1 and 2.
+4. Ranked-lite: rating per player (pairwise Elo scaled by opponent count), ranks in lobby, global
+   leaderboard. Private servers and matches under 3 players do not count. Deferred until there are
+   real players to calibrate against - it is also the first feature to write persistent,
+   player-visible data, so ship it shadow-mode or with a versioned key. Co-op can never be ranked
+   (everyone ties by construction); Teams would have to be rated team-vs-team.
 5. Real ranked queue (MemoryStoreService + TeleportService) only once concurrent players can support it
 6. Cosmetic passes: Legendary reveal effects, Party Host pass (custom lobby settings, non-ranked only)
 
