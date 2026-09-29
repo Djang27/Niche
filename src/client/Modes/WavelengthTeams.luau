@@ -56,7 +56,7 @@ end
 
 local function paintCategories()
 	for i, b in ipairs(categoryButtons) do
-		b.BackgroundColor3 = (pickedCategory == i) and UiKit.GREEN or Color3.fromRGB(45, 45, 60)
+		b.BackgroundColor3 = (pickedCategory == i) and UiKit.GREEN or UiKit.FIELD
 	end
 end
 
@@ -303,7 +303,7 @@ function WavelengthTeams.build(parent, modeApi)
 
 	bar = UiKit.make("Frame", {
 		Size = UDim2.new(1, -40, 0.06, 0), Position = UDim2.new(0, 20, 0.32, 0),
-		BackgroundColor3 = Color3.fromRGB(45, 45, 60), Parent = frame,
+		BackgroundColor3 = UiKit.FIELD, Parent = frame,
 	})
 	UiKit.make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
 
@@ -325,7 +325,7 @@ function WavelengthTeams.build(parent, modeApi)
 		UDim2.new(0.6667, 4, 0.42, 0),
 	}
 	for i = 1, 3 do
-		local b = UiKit.button(frame, "", Color3.fromRGB(45, 45, 60),
+		local b = UiKit.button(frame, "", UiKit.FIELD,
 			UDim2.new(0.3333, -14, 0.09, 0), CAT_POS[i])
 		b.Font = Enum.Font.GothamMedium
 		b.Visible = false

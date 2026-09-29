@@ -32,7 +32,7 @@ local function paintWords()
 
 	for i, word in ipairs(myWords) do
 		local b = UiKit.button(wordsFrame, ("%d.   %s      \u{2715}"):format(i, word),
-			Color3.fromRGB(45, 45, 60), UDim2.new(1, -12, 0, 30), UDim2.new())
+			UiKit.FIELD, UDim2.new(1, -12, 0, 30), UDim2.new())
 		b.TextScaled = false
 		b.TextSize = 16
 		b.Font = Enum.Font.Gotham

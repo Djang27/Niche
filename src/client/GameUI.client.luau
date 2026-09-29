@@ -37,21 +37,17 @@ local gui = UiKit.make("ScreenGui", {
 	Parent = player:WaitForChild("PlayerGui"),
 })
 
-UiKit.make("Frame", {
-	Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(15, 15, 22),
-	BorderSizePixel = 0, ZIndex = 0, Parent = gui,
-})
+UiKit.backdrop(gui)
 
 ---------------------------------------------------------------- running score
 
 -- Sits above whichever mode is playing. The shell owns scores, so every game gets a
 -- visible running total for free instead of each one remembering to print one - and it
 -- stays up through the whole round rather than flashing past in a reveal.
-local scoreStrip = UiKit.make("Frame", {
+local scoreStrip = UiKit.surface(UiKit.corner(UiKit.make("Frame", {
 	Size = UDim2.fromScale(0.5, 0.055), Position = UDim2.fromScale(0.25, 0.135),
-	BackgroundColor3 = Color3.fromRGB(25, 25, 35), Visible = false, Parent = gui,
-})
-UiKit.make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = scoreStrip })
+	BackgroundColor3 = UiKit.PANEL, Visible = false, Parent = gui,
+}), 8))
 
 local scoreLabel = UiKit.label(scoreStrip, {
 	Size = UDim2.new(1, -16, 1, 0), Position = UDim2.new(0, 8, 0, 0),
@@ -179,7 +175,7 @@ UiKit.label(menuFrame, {
 	TextScaled = true, TextColor3 = UiKit.DIM, Text = "Party games, one lobby",
 })
 
-local playButton = UiKit.button(menuFrame, "Play", UiKit.GREEN,
+local playButton = UiKit.button(menuFrame, "Play", UiKit.ACCENT,
 	UDim2.new(1, -40, 0.16, 0), UDim2.new(0, 20, 0.44, 0))
 local storeButton = UiKit.button(menuFrame, "Store", UiKit.GRAY,
 	UDim2.new(1, -40, 0.13, 0), UDim2.new(0, 20, 0.64, 0))
