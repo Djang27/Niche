@@ -97,7 +97,12 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   `Modes/` at startup and shows only the active one's frame. The modes screen lists playable games
   first, then greyed-out entries from its `PLANNED` list - a planned name drops off automatically once
   a real module with that name exists.
-- `UiKit.luau`: shared make/panel/label/button/escape helpers and the colour palette.
+- `UiKit.luau`: the whole design system - palette, `SPACE`/`TEXT`/`RADIUS` scales, and the
+  `panel`/`label`/`button`/`field`/`corner`/`escape` helpers. Screens must use the scales rather than
+  raw numbers. `TEXT` values are **ceilings for TextScaled text, not fixed sizes**: TextScaled alone
+  grows text to fill its box, so a one-word label rendered huge and a long one tiny, and the same
+  label changed size between rounds. Labels cap at `title` unless they pass `max`; buttons and
+  fields cap at `heading`. Only true display text (GothamBlack titles) opts up to `display`.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
 - `Modes/DeepDive.luau`: type an answer, press Enter, repeat against a clock. Each one round-trips
   through ModeRequest and only appears once the server accepts it, showing the canonical spelling

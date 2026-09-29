@@ -168,7 +168,7 @@ local menuFrame = UiKit.panel(gui)
 
 UiKit.label(menuFrame, {
 	Size = UDim2.new(1, -20, 0.2, 0), Position = UDim2.new(0, 10, 0.06, 0),
-	TextScaled = true, Font = Enum.Font.GothamBlack, Text = "NICHE",
+	max = UiKit.TEXT.display, TextScaled = true, Font = Enum.Font.GothamBlack, Text = "NICHE",
 })
 UiKit.label(menuFrame, {
 	Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.28, 0),
@@ -352,7 +352,7 @@ local lobbyFrame = UiKit.panel(gui)
 
 local titleLabel = UiKit.label(lobbyFrame, {
 	Size = UDim2.new(1, -20, 0.14, 0), Position = UDim2.new(0, 10, 0, 10),
-	TextScaled = true, Font = Enum.Font.GothamBlack, Text = "NICHE",
+	max = UiKit.TEXT.display, TextScaled = true, Font = Enum.Font.GothamBlack, Text = "NICHE",
 })
 local blurbLabel = UiKit.label(lobbyFrame, {
 	Size = UDim2.new(1, -20, 0.06, 0), Position = UDim2.new(0, 10, 0.15, 0),
@@ -393,7 +393,7 @@ local podiumFrame = UiKit.panel(gui)
 
 UiKit.label(podiumFrame, {
 	Size = UDim2.new(1, -20, 0.14, 0), Position = UDim2.new(0, 10, 0, 10),
-	TextScaled = true, Font = Enum.Font.GothamBlack, Text = "Match over!",
+	max = UiKit.TEXT.display, TextScaled = true, Font = Enum.Font.GothamBlack, Text = "Match over!",
 })
 
 local standingsLabel = UiKit.label(podiumFrame, {

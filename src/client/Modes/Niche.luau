@@ -154,13 +154,10 @@ function Niche.build(parent, modeApi)
 		TextScaled = true, TextColor3 = UiKit.YELLOW, Text = "",
 	})
 
-	input = UiKit.make("TextBox", {
+	input = UiKit.field(frame, {
 		Size = UDim2.new(0.7, -15, 0.12, 0), Position = UDim2.new(0, 10, 0.31, 0),
-		PlaceholderText = "Your most niche answer...", Text = "", ClearTextOnFocus = false,
-		TextScaled = true, Font = Enum.Font.Gotham, TextColor3 = UiKit.WHITE,
-		BackgroundColor3 = Color3.fromRGB(45, 45, 60), Parent = frame,
+		PlaceholderText = "Your most niche answer...", Text = "",
 	})
-	UiKit.make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = input })
 
 	submit = UiKit.button(frame, "Lock in", UiKit.BLUE,
 		UDim2.new(0.3, -15, 0.12, 0), UDim2.new(0.7, 5, 0.31, 0))

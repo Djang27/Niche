@@ -276,7 +276,7 @@ function WavelengthTeams.build(parent, modeApi)
 
 	roundLabel = UiKit.label(frame, {
 		Size = UDim2.new(0.5, -10, 0.07, 0), Position = UDim2.new(0, 10, 0.02, 0),
-		TextScaled = true, TextColor3 = UiKit.DIM,
+		max = UiKit.TEXT.small, TextScaled = true, TextColor3 = UiKit.DIM,
 		TextXAlignment = Enum.TextXAlignment.Left, Text = "",
 	})
 	teamLabel = UiKit.label(frame, {
@@ -338,13 +338,10 @@ function WavelengthTeams.build(parent, modeApi)
 		categoryButtons[i] = b
 	end
 
-	clueBox = UiKit.make("TextBox", {
+	clueBox = UiKit.field(frame, {
 		Size = UDim2.new(0.66, -15, 0.11, 0), Position = UDim2.new(0, 10, 0.53, 0),
-		PlaceholderText = "One word or phrase...", Text = "", ClearTextOnFocus = false,
-		TextScaled = true, Font = Enum.Font.Gotham, TextColor3 = UiKit.WHITE,
-		BackgroundColor3 = Color3.fromRGB(45, 45, 60), Visible = false, Parent = frame,
+		PlaceholderText = "One word or phrase...", Text = "", Visible = false,
 	})
-	UiKit.make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = clueBox })
 
 	submitButton = UiKit.button(frame, "Send clue", UiKit.BLUE,
 		UDim2.new(0.34, -15, 0.11, 0), UDim2.new(0.66, 5, 0.53, 0))

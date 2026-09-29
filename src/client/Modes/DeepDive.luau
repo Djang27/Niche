@@ -186,21 +186,18 @@ function DeepDive.build(parent, modeApi)
 
 	roundLabel = UiKit.label(frame, {
 		Size = UDim2.new(1, -20, 0.06, 0), Position = UDim2.new(0, 10, 0.02, 0),
-		TextScaled = true, TextColor3 = UiKit.DIM, Text = "",
+		max = UiKit.TEXT.small, TextScaled = true, TextColor3 = UiKit.DIM, Text = "",
 	})
 
 	categoryLabel = UiKit.label(frame, {
 		Size = UDim2.new(1, -20, 0.13, 0), Position = UDim2.new(0, 10, 0.09, 0),
-		TextScaled = true, Font = Enum.Font.GothamBlack, Text = "Get ready...",
+		max = UiKit.TEXT.display, TextScaled = true, Font = Enum.Font.GothamBlack, Text = "Get ready...",
 	})
 
-	input = UiKit.make("TextBox", {
+	input = UiKit.field(frame, {
 		Size = UDim2.new(0.66, -15, 0.11, 0), Position = UDim2.new(0, 10, 0.24, 0),
-		PlaceholderText = "An answer, then Enter...", Text = "", ClearTextOnFocus = false,
-		TextScaled = true, Font = Enum.Font.Gotham, TextColor3 = UiKit.WHITE,
-		BackgroundColor3 = Color3.fromRGB(45, 45, 60), Parent = frame,
+		PlaceholderText = "An answer, then Enter...", Text = "",
 	})
-	UiKit.make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = input })
 
 	doneButton = UiKit.button(frame, "Done", UiKit.GREEN,
 		UDim2.new(0.34, -15, 0.11, 0), UDim2.new(0.66, 5, 0.24, 0))
