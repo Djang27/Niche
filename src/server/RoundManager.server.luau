@@ -13,6 +13,8 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Cosmetics = require(script.Parent.Shared.Cosmetics)
+
 Players.CharacterAutoLoads = false -- menu-style game, no characters
 
 -- tweak these
@@ -20,6 +22,7 @@ local COUNTDOWN_TIME = 5
 local PODIUM_TIME = 20 -- max time on the podium screen before everyone goes back to lobby
 local MIN_PLAYERS = 1  -- set to 2+ once you're testing with friends
 local DEFAULT_MODE = "Niche"
+local INTRO_TIME = 4   -- a beat to see who you are up against before the first round
 
 ---------------------------------------------------------------- remotes
 -- Built before anything that can fail, so a broken mode never leaves clients
@@ -131,6 +134,9 @@ local function onPlayerAdded(player)
 	player:SetAttribute("Ready", false)
 	player:SetAttribute("InMatch", false)
 	player:SetAttribute("InLobby", false) -- everyone starts on the menu, not in the lobby
+	-- equipped cosmetics are attributes so they replicate: your banner is something the
+	-- whole room sees, not just you
+	Cosmetics.applyDefaults(player)
 	table.insert(joinOrder, player)
 	updateHost()
 end
@@ -373,6 +379,13 @@ local function startMatch()
 		p:SetAttribute("InMatch", true)
 		p:SetAttribute("Ready", false)
 	end
+	setState("Intro")
+end
+
+-- The roster screen between the countdown and the first round. Shell-owned because it is
+-- about the players rather than the game, so every mode gets it without knowing.
+local function runIntro()
+	task.wait(INTRO_TIME)
 	setState("InMatch")
 end
 
@@ -471,6 +484,7 @@ while true do
 	-- would sit in InMatch forever and every client would hang with no way out.
 	-- Dropping back to the lobby loses a match, which is a far better failure.
 	local ok, err = pcall(function()
+		runIntro()
 		if runMatch() then
 			runPodium()
 		end

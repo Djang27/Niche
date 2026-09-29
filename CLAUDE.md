@@ -53,6 +53,11 @@ src/server/ (-> ServerScriptService)
 - `Shared/TextFilter.luau`: TextService wrapper for any player-typed text other players will see.
   `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
+- `Shared/Cosmetics.luau`: the entitlement seam. Catalogue of items by kind (`Banner`,
+  `RevealEffect`), `ownedBy`, `equipped`, `equip`, `applyDefaults`. Nothing is monetised yet and
+  only `free = true` items pass the gate - when gamepasses arrive, `ownedBy` is the one place that
+  changes. Equipped ids replicate as player attributes; **visuals live on the client**, so a client
+  can restyle but never grant itself anything. There is no equip UI yet, so `equip` has no caller.
 - `Shared/Wavelength.luau`: rules every Wavelength mode agrees on - `score(distance)` proximity bands,
   `newTarget()`, `cleanClue(text, maxLen)`, `orderedPlayers(ctx)` - plus `newRotatingMode(config)`, the
   factory Solo and Co-op are both built from. Those two run an identical round (one clue giver,
@@ -103,6 +108,9 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   grows text to fill its box, so a one-word label rendered huge and a long one tiny, and the same
   label changed size between rounds. Labels cap at `title` unless they pass `max`; buttons and
   fields cap at `heading`. Only true display text (GothamBlack titles) opts up to `display`.
+- `Cosmetics.luau`: how each cosmetic id looks. Ids must match `Shared/Cosmetics` exactly; an
+  unknown id falls back rather than erroring, so a player wearing something this client has not
+  heard of still renders.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
 - `Modes/DeepDive.luau`: type an answer, press Enter, repeat against a clock. Each one round-trips
   through ModeRequest and only appears once the server accepts it, showing the canonical spelling
@@ -159,11 +167,12 @@ no group gets its own grid button.
 reach the server half. The shell calls `reset()` when a match ends.
 
 ## State the client reads (attributes)
-- ReplicatedStorage: `GameState` ("Lobby" | "Countdown" | "InMatch" | "Podium"), `Countdown`, `HostUserId`,
+- ReplicatedStorage: `GameState` ("Lobby" | "Countdown" | "Intro" | "InMatch" | "Podium"), `Countdown`, `HostUserId`,
   `ActiveMode` (module name of the mode currently loaded, e.g. "Niche"), `Scoreboard` (the running
   score line a mode wants shown, or nil for the generic per-player strip), `Waiting` (who the round
   is still waiting on, set via `ctx.waitingOn`)
-- Each Player: `Score` (running match total, set by `ctx.award` so the shell can keep it on screen
+- Each Player: `Banner` and `RevealEffect` (equipped cosmetic ids - attributes so the whole room
+  sees what you are wearing, not just you), `Score` (running match total, set by `ctx.award` so the shell can keep it on screen
   without a remote), `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
   rather than browsing the menu or store). Only `InLobby` players count towards starting a match and
   only they get pulled into one, so an idle player on the menu can never block a countdown.
@@ -234,6 +243,8 @@ return {
   object it belongs to (see `prompt.spellings` in AnswerJudge). Do not churn working, playtested code
   for wins too small to measure at this player count.
 - Never sell anything that affects scoring (future monetization is cosmetic / host controls only).
+  `Shared/Cosmetics.luau` is where that is enforced: entitlements are server-decided, cosmetic-only,
+  and a client never asserts what it owns. Keep all three properties when adding to it.
 - Keep tunables as constants at the top of files (timers, rounds, MIN_PLAYERS, etc).
 
 ## Roadmap (rough order)

@@ -14,6 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
 local UiKit = require(script.Parent:WaitForChild("UiKit"))
+local Cosmetics = require(script.Parent:WaitForChild("Cosmetics"))
 
 local player = Players.LocalPlayer
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -168,6 +169,87 @@ remotes.ModeEvent.OnClientEvent:Connect(function(kind, ...)
 		mode.onEvent(kind, ...)
 	end
 end)
+
+---------------------------------------------------------------- match intro
+
+-- Wider than a normal panel because it holds a row of avatars rather than a column of
+-- text. Shown between the countdown and the first round.
+local introFrame = UiKit.surface(UiKit.corner(UiKit.make("Frame", {
+	Size = UDim2.fromScale(0.72, 0.52), Position = UDim2.fromScale(0.14, 0.24),
+	BackgroundColor3 = UiKit.PANEL, Visible = false, Parent = gui,
+}), 14))
+
+UiKit.label(introFrame, {
+	Size = UDim2.new(1, -20, 0.14, 0), Position = UDim2.new(0, 10, 0.04, 0),
+	max = UiKit.TEXT.display, TextScaled = true, Font = Enum.Font.GothamBlack,
+	Text = "Get ready",
+})
+
+local introSubtitle = UiKit.label(introFrame, {
+	Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.18, 0),
+	TextScaled = true, max = UiKit.TEXT.body, TextColor3 = UiKit.DIM, Text = "",
+})
+
+local introGrid = UiKit.make("Frame", {
+	Size = UDim2.new(1, -40, 0.66, 0), Position = UDim2.new(0, 20, 0.28, 0),
+	BackgroundTransparency = 1, Parent = introFrame,
+})
+UiKit.make("UIGridLayout", {
+	CellSize = UDim2.fromOffset(108, 130), CellPadding = UDim2.fromOffset(12, 12),
+	HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+	SortOrder = Enum.SortOrder.LayoutOrder, Parent = introGrid,
+})
+
+local introTiles = {}
+
+local function buildIntro()
+	for _, t in ipairs(introTiles) do
+		t:Destroy()
+	end
+	table.clear(introTiles)
+
+	local mode = activeMode()
+	introSubtitle.Text = mode and mode.name or ""
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p:GetAttribute("InMatch") then
+			-- the server replicates only an id; this client decides how it looks
+			local skin = Cosmetics.banner(p:GetAttribute("Banner"))
+
+			local tile = UiKit.make("Frame", {
+				BackgroundColor3 = UiKit.WHITE, Parent = introGrid,
+			})
+			UiKit.corner(tile, 10)
+			UiKit.make("UIGradient", {
+				Rotation = 90, Color = ColorSequence.new(skin.from, skin.to), Parent = tile,
+			})
+			UiKit.make("UIStroke", { Color = skin.edge, Thickness = 2, Transparency = 0.2, Parent = tile })
+
+			local avatar = UiKit.make("ImageLabel", {
+				Size = UDim2.fromOffset(90, 90), Position = UDim2.fromOffset(9, 8),
+				BackgroundTransparency = 1, Image = "", Parent = tile,
+			})
+			UiKit.label(tile, {
+				Size = UDim2.new(1, -8, 0, 22), Position = UDim2.new(0, 4, 1, -26),
+				TextScaled = true, max = UiKit.TEXT.small, Font = Enum.Font.GothamBold,
+				Text = p.DisplayName,
+			})
+			table.insert(introTiles, tile)
+
+			-- thumbnails yield and can fail; an empty frame beats a broken screen
+			task.spawn(function()
+				local ok, content = pcall(function()
+					return Players:GetUserThumbnailAsync(p.UserId,
+						Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size150x150)
+				end)
+				if ok and avatar.Parent then
+					avatar.Image = content
+				end
+			end)
+		end
+	end
+end
 
 ---------------------------------------------------------------- main menu
 
@@ -549,6 +631,8 @@ local function renderLobby(state)
 	-- in the lobby has no way out until it finishes
 end
 
+local lastScreen = nil
+
 local function render()
 	local state = ReplicatedStorage:GetAttribute("GameState") or "Lobby"
 	local inMatch = player:GetAttribute("InMatch")
@@ -556,7 +640,9 @@ local function render()
 
 	-- a match we are in always beats wherever we had browsed to
 	local screen
-	if inMatch and state == "InMatch" then
+	if inMatch and state == "Intro" then
+		screen = "intro"
+	elseif inMatch and state == "InMatch" then
 		screen = "game"
 	elseif inMatch and state == "Podium" then
 		screen = "podium"
@@ -564,6 +650,7 @@ local function render()
 		screen = nav
 	end
 
+	introFrame.Visible = screen == "intro"
 	menuFrame.Visible = screen == "menu"
 	modesFrame.Visible = screen == "modes"
 	groupFrame.Visible = screen == "group"
@@ -579,6 +666,14 @@ local function render()
 	for _, m in pairs(modes) do
 		if m.frame then
 			m.frame.Visible = (screen == "game" and m == mode)
+		end
+	end
+
+	-- rebuild the roster once on arrival, not every 0.2s tick
+	if screen ~= lastScreen then
+		lastScreen = screen
+		if screen == "intro" then
+			buildIntro()
 		end
 	end
 
