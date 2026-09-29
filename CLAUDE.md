@@ -143,6 +143,12 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
 - `Modes/WavelengthTeams.luau`: its own screen. Same dial, but you only ever see your own team's clue;
   the other team's target, clue and guesses appear only at the reveal, colour coded per team.
 
+Reveal convention on the dial, shared by all three Wavelength modes: **targets stand above the bar
+with a caption naming them; guesses sit inside it.** Before this, a target and a guess were both just
+coloured lines, and Teams superimposed two of each on one dial - nobody could tell which line was the
+answer. Teams stacks its two captions at different heights so they stay legible when the targets land
+close together.
+
 ## Mode interface
 Adding a game = one server module + one client module. No shell changes.
 

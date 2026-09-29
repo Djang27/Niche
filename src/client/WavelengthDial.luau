@@ -176,6 +176,14 @@ function WavelengthDial.new(config)
 		targetMarker.Visible = true
 		setMarker(targetMarker, info.target)
 
+		-- a green line among white lines is not self-explanatory; say which one it is
+		local tag = UiKit.label(bar, {
+			Size = UDim2.fromOffset(70, 16), TextSize = 12, ZIndex = 4,
+			Font = Enum.Font.GothamBold, TextColor3 = UiKit.GREEN, Text = "TARGET",
+		})
+		tag.Position = UDim2.new(math.clamp(info.target, 0, 1), -35, 0, -22)
+		table.insert(revealMarkers, tag)
+
 		-- one faint marker per guess, so everyone can see the spread
 		for _, row in ipairs(info.rows) do
 			if row.guess then

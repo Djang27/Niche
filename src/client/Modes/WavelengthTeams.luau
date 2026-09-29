@@ -170,28 +170,39 @@ local function onReveal(info)
 	targetMarker.Visible = false
 	clearRevealMarkers()
 
-	-- both teams' targets and every guess, colour coded, now that it is all public
+	-- Two teams on one dial was unreadable when targets and guesses were both just
+	-- coloured lines. Targets now stand ABOVE the bar with a caption naming the team;
+	-- guesses sit inside it. The two captions sit at different heights so they stay
+	-- legible when the targets land close together.
 	for team = 1, 2 do
 		local name = info.teamNames[team]
 		local color = TEAM_COLORS[name] or UiKit.WHITE
+		local target = info.targets[team]
 
-		if info.targets[team] and info.targets[team] >= 0 then
+		if target and target >= 0 then
 			local t = UiKit.make("Frame", {
-				Size = UDim2.new(0, 8, 1, 8), BackgroundColor3 = color,
-				ZIndex = 3, Parent = bar,
+				Size = UDim2.new(0, 6, 1, 14), BackgroundColor3 = color,
+				ZIndex = 4, Parent = bar,
 			})
+			t.Position = UDim2.new(math.clamp(target, 0, 1), -3, 0, -7)
 			UiKit.make("UICorner", { CornerRadius = UDim.new(0, 3), Parent = t })
-			setMarker(t, info.targets[team])
 			table.insert(revealMarkers, t)
+
+			local tag = UiKit.label(bar, {
+				Size = UDim2.fromOffset(86, 16), TextSize = 12, ZIndex = 4,
+				Font = Enum.Font.GothamBold, TextColor3 = color,
+				Text = ("%s target"):format(name),
+			})
+			tag.Position = UDim2.new(math.clamp(target, 0, 1), -43, 0, team == 1 and -24 or -42)
+			table.insert(revealMarkers, tag)
 		end
 
 		for _, g in ipairs(info.guesses[team] or {}) do
 			local m = UiKit.make("Frame", {
-				Size = UDim2.new(0, 4, 0.6, 0), Position = UDim2.new(0, 0, 0.2, 0),
-				BackgroundColor3 = color, BackgroundTransparency = 0.4,
-				ZIndex = 2, Parent = bar,
+				Size = UDim2.new(0, 4, 0.55, 0), BackgroundColor3 = color,
+				BackgroundTransparency = 0.25, ZIndex = 2, Parent = bar,
 			})
-			m.Position = UDim2.new(math.clamp(g, 0, 1), -2, 0.2, 0)
+			m.Position = UDim2.new(math.clamp(g, 0, 1), -2, 0.225, 0)
 			table.insert(revealMarkers, m)
 		end
 	end
