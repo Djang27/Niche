@@ -10,6 +10,7 @@
 -- and the shell just shows or hides the frame build() handed back.
 
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
@@ -211,6 +212,69 @@ UiKit.make("UIGridLayout", {
 	SortOrder = Enum.SortOrder.LayoutOrder, Parent = introGrid,
 })
 
+-- Shared by the intro and the between-round recap. `caption` is the points line; without
+-- it the avatar simply takes more of the tile.
+local function makeTile(grid, p, caption, accent)
+	-- the server replicates only an id; this client decides how it looks
+	local skin = Cosmetics.banner(p:GetAttribute("Banner"))
+
+	local tile = UiKit.make("Frame", {
+		BackgroundColor3 = UiKit.WHITE, Parent = grid,
+	})
+	UiKit.corner(tile, 10)
+	UiKit.make("UIGradient", {
+		Rotation = 90, Color = ColorSequence.new(skin.from, skin.to), Parent = tile,
+	})
+	UiKit.make("UIStroke", { Color = skin.edge, Thickness = 2, Transparency = 0.2, Parent = tile })
+
+	local avatarBottom = caption and 0.56 or 0.72
+	local avatar = UiKit.make("ImageLabel", {
+		Size = UDim2.new(0.78, 0, avatarBottom - 0.06, 0), Position = UDim2.new(0.11, 0, 0.04, 0),
+		BackgroundTransparency = 1, Image = "", Parent = tile,
+	})
+	UiKit.label(tile, {
+		Size = UDim2.new(1, -8, caption and 0.18 or 0.22, 0),
+		Position = UDim2.new(0, 4, avatarBottom, 0),
+		TextScaled = true, max = UiKit.TEXT.small, Font = Enum.Font.GothamBold,
+		Text = p.DisplayName,
+	})
+	if caption then
+		UiKit.label(tile, {
+			Size = UDim2.new(1, -8, 0.22, 0), Position = UDim2.new(0, 4, 0.75, 0),
+			TextScaled = true, max = UiKit.TEXT.heading, Font = Enum.Font.GothamBlack,
+			TextColor3 = accent or UiKit.WHITE, Text = caption,
+		})
+	end
+
+	-- thumbnails yield and can fail; an empty frame beats a broken screen
+	task.spawn(function()
+		local ok, content = pcall(function()
+			return Players:GetUserThumbnailAsync(p.UserId,
+				Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size150x150)
+		end)
+		if ok and avatar.Parent then
+			avatar.Image = content
+		end
+	end)
+
+	return tile
+end
+
+-- Reactions are on the tile, not the avatar. Animating the real avatar would mean a
+-- ViewportFrame and a loaded rig per player, which is a lot of 3D rendering for a phone.
+local function celebrate(tile)
+	local scale = UiKit.make("UIScale", { Scale = 1, Parent = tile })
+	TweenService:Create(scale,
+		TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 3, true),
+		{ Scale = 1.14 }):Play()
+end
+
+local function slump(tile)
+	TweenService:Create(tile,
+		TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 5, true),
+		{ Rotation = -6 }):Play()
+end
+
 local introTiles = {}
 
 local function buildIntro()
@@ -224,39 +288,83 @@ local function buildIntro()
 
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p:GetAttribute("InMatch") then
-			-- the server replicates only an id; this client decides how it looks
-			local skin = Cosmetics.banner(p:GetAttribute("Banner"))
+			table.insert(introTiles, makeTile(introGrid, p))
+		end
+	end
+end
 
-			local tile = UiKit.make("Frame", {
-				BackgroundColor3 = UiKit.WHITE, Parent = introGrid,
-			})
-			UiKit.corner(tile, 10)
-			UiKit.make("UIGradient", {
-				Rotation = 90, Color = ColorSequence.new(skin.from, skin.to), Parent = tile,
-			})
-			UiKit.make("UIStroke", { Color = skin.edge, Thickness = 2, Transparency = 0.2, Parent = tile })
+---------------------------------------------------------------- between-round recap
 
-			local avatar = UiKit.make("ImageLabel", {
-				Size = UDim2.fromOffset(90, 90), Position = UDim2.fromOffset(9, 8),
-				BackgroundTransparency = 1, Image = "", Parent = tile,
-			})
-			UiKit.label(tile, {
-				Size = UDim2.new(1, -8, 0, 22), Position = UDim2.new(0, 4, 1, -26),
-				TextScaled = true, max = UiKit.TEXT.small, Font = Enum.Font.GothamBold,
-				Text = p.DisplayName,
-			})
-			table.insert(introTiles, tile)
+local recapFrame = UiKit.surface(UiKit.corner(UiKit.make("Frame", {
+	BackgroundColor3 = UiKit.PANEL, Visible = false, Parent = gui,
+}), 14))
+UiKit.fit(recapFrame, 0.72, 0.52)
 
-			-- thumbnails yield and can fail; an empty frame beats a broken screen
-			task.spawn(function()
-				local ok, content = pcall(function()
-					return Players:GetUserThumbnailAsync(p.UserId,
-						Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size150x150)
-				end)
-				if ok and avatar.Parent then
-					avatar.Image = content
-				end
-			end)
+UiKit.label(recapFrame, {
+	Size = UDim2.new(1, -20, 0.13, 0), Position = UDim2.new(0, 10, 0.04, 0),
+	max = UiKit.TEXT.title, TextScaled = true, Font = Enum.Font.GothamBlack,
+	Text = "Standings",
+})
+
+local recapGrid = UiKit.make("Frame", {
+	Size = UDim2.new(1, -40, 0.72, 0), Position = UDim2.new(0, 20, 0.2, 0),
+	BackgroundTransparency = 1, Parent = recapFrame,
+})
+UiKit.make("UIGridLayout", {
+	CellSize = UDim2.fromOffset(108, 152), CellPadding = UDim2.fromOffset(12, 12),
+	HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+	SortOrder = Enum.SortOrder.LayoutOrder, Parent = recapGrid,
+})
+
+local recapTiles = {}
+
+local function buildRecap()
+	for _, t in ipairs(recapTiles) do
+		t:Destroy()
+	end
+	table.clear(recapTiles)
+
+	local playing = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p:GetAttribute("InMatch") then
+			table.insert(playing, p)
+		end
+	end
+	table.sort(playing, function(a, b)
+		local sa, sb = a:GetAttribute("Score") or 0, b:GetAttribute("Score") or 0
+		if sa ~= sb then
+			return sa > sb
+		end
+		return a.DisplayName < b.DisplayName
+	end)
+
+	-- react to what the round was worth, not the running total: last place can still
+	-- have had a good round
+	local best = 0
+	for _, p in ipairs(playing) do
+		best = math.max(best, p:GetAttribute("RoundDelta") or 0)
+	end
+
+	for i, p in ipairs(playing) do
+		local delta = p:GetAttribute("RoundDelta") or 0
+		local total = p:GetAttribute("Score") or 0
+		local tile = makeTile(recapGrid, p,
+			("+%d"):format(delta),
+			delta > 0 and UiKit.GREEN or UiKit.DIM)
+		tile.LayoutOrder = i
+
+		UiKit.label(tile, {
+			Size = UDim2.new(1, -8, 0.14, 0), Position = UDim2.new(0, 4, 0.955, 0),
+			TextScaled = true, max = UiKit.TEXT.small, TextColor3 = UiKit.DIM,
+			Text = ("total %d"):format(total),
+		})
+
+		table.insert(recapTiles, tile)
+		if best > 0 and delta == best then
+			celebrate(tile)
+		elseif delta == 0 then
+			slump(tile)
 		end
 	end
 end
@@ -652,6 +760,8 @@ local function render()
 	local screen
 	if inMatch and state == "Intro" then
 		screen = "intro"
+	elseif inMatch and state == "Recap" then
+		screen = "recap"
 	elseif inMatch and state == "InMatch" then
 		screen = "game"
 	elseif inMatch and state == "Podium" then
@@ -661,6 +771,7 @@ local function render()
 	end
 
 	introFrame.Visible = screen == "intro"
+	recapFrame.Visible = screen == "recap"
 	menuFrame.Visible = screen == "menu"
 	modesFrame.Visible = screen == "modes"
 	groupFrame.Visible = screen == "group"
@@ -684,6 +795,8 @@ local function render()
 		lastScreen = screen
 		if screen == "intro" then
 			buildIntro()
+		elseif screen == "recap" then
+			buildRecap()
 		end
 	end
 

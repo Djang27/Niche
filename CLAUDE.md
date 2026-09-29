@@ -99,7 +99,13 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
 - `GameUI.client.luau`: the shell's UI. Screens are menu -> modes -> lobby -> the active mode's own
   screen -> podium, switched by polling attributes every 0.2s. Menu/modes/lobby are *local* navigation
   (each player browses independently); a match the player is in overrides it. Builds every mode in
-  `Modes/` at startup and shows only the active one's frame. The modes screen lists playable games
+  `Modes/` at startup and shows only the active one's frame. It also owns two shell-level roster
+  screens built from the same `makeTile` helper: the match **intro**, and a **recap** between rounds
+  showing standings with each player's round score. Tiles are framed by the player's banner, which is
+  what gives cosmetics a job every round rather than once a match. Reactions (a bounce for the round's
+  best, a head-shake for nobody-scored) animate **the tile, not the avatar** - animating the real
+  avatar needs a ViewportFrame and a loaded rig per player, which is a lot of 3D rendering for a
+  phone to do mid-match. The modes screen lists playable games
   first, then greyed-out entries from its `PLANNED` list - a planned name drops off automatically once
   a real module with that name exists.
 - `UiKit.luau`: the whole design system - palette, `SPACE`/`TEXT`/`RADIUS` scales, and the
@@ -192,13 +198,14 @@ no group gets its own grid button.
 reach the server half. The shell calls `reset()` when a match ends.
 
 ## State the client reads (attributes)
-- ReplicatedStorage: `GameState` ("Lobby" | "Countdown" | "Intro" | "InMatch" | "Podium"), `Countdown`, `HostUserId`,
+- ReplicatedStorage: `GameState` ("Lobby" | "Countdown" | "Intro" | "InMatch" | "Recap" | "Podium"), `Countdown`, `HostUserId`,
   `ActiveMode` (module name of the mode currently loaded, e.g. "Niche"), `Scoreboard` (the running
   score line a mode wants shown, or nil for the generic per-player strip), `Waiting` (who the round
   is still waiting on, set via `ctx.waitingOn`)
 - Each Player: `Banner` and `RevealEffect` (equipped cosmetic ids - attributes so the whole room
   sees what you are wearing, not just you), `Score` (running match total, set by `ctx.award` so the shell can keep it on screen
-  without a remote), `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
+  without a remote), `RoundDelta` (what the last round alone was worth, so the recap can react to a
+  good round even from last place), `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
   rather than browsing the menu or store). Only `InLobby` players count towards starting a match and
   only they get pulled into one, so an idle player on the menu can never block a countdown.
 - `ReplicatedStorage.AvailableModes`: one StringValue per loadable mode (Name = module name,

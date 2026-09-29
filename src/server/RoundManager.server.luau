@@ -23,6 +23,7 @@ local PODIUM_TIME = 20 -- max time on the podium screen before everyone goes bac
 local MIN_PLAYERS = 1  -- set to 2+ once you're testing with friends
 local DEFAULT_MODE = "Niche"
 local INTRO_TIME = 4   -- a beat to see who you are up against before the first round
+local RECAP_TIME = 4   -- standings between rounds; skipped after the last, the podium follows
 
 ---------------------------------------------------------------- remotes
 -- Built before anything that can fail, so a broken mode never leaves clients
@@ -376,6 +377,7 @@ local function startMatch()
 		participants[p] = true
 		scores[p] = 0
 		p:SetAttribute("Score", 0)
+		p:SetAttribute("RoundDelta", 0)
 		p:SetAttribute("InMatch", true)
 		p:SetAttribute("Ready", false)
 	end
@@ -402,8 +404,18 @@ local function runMatch()
 		if #participantList() == 0 then
 			return false
 		end
+		-- snapshot so the recap can show what this round alone was worth, not just totals
+		local before = {}
+		for p, v in pairs(scores) do
+			before[p] = v
+		end
+
 		mode.runRound(ctx, round)
 		ctx.waitingOn(nil) -- safety net, in case a mode forgot to clear it
+
+		for _, p in ipairs(participantList()) do
+			p:SetAttribute("RoundDelta", (scores[p] or 0) - (before[p] or 0))
+		end
 
 		-- a mode may phrase the running score its own way (Teams wants two team totals,
 		-- not four identical player totals). nil falls back to the per-player strip.
@@ -413,6 +425,13 @@ local function runMatch()
 			line = (ok and typeof(text) == "string") and text or nil
 		end
 		ReplicatedStorage:SetAttribute("Scoreboard", line)
+
+		-- standings between rounds. Not after the last one: the podium is next anyway.
+		if round < ctx.rounds and #participantList() > 0 then
+			setState("Recap")
+			task.wait(RECAP_TIME)
+			setState("InMatch")
+		end
 	end
 
 	local standings = {}
