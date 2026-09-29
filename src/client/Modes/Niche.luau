@@ -5,23 +5,27 @@
 -- Everything below the build is this mode's own business.
 
 local UiKit = require(script.Parent.Parent.UiKit)
+local PlayerCards = require(script.Parent.Parent.PlayerCards)
 
 local Niche = {
 	name = "Niche",
 	blurb = "The rarer your answer, the more points",
 }
 
+-- Color3 rather than RichText hex: the reveal is player cards now, not markup
 local TIER_COLORS = {
-	Common = "#b0b0b0",
-	Rare = "#4da6ff",
-	SuperRare = "#b366ff",
-	Epic = "#ff9933",
-	Legendary = "#ffd700",
-	Invalid = "#ff4d4d",
+	Common = Color3.fromRGB(176, 176, 176),
+	Rare = Color3.fromRGB(77, 166, 255),
+	SuperRare = Color3.fromRGB(179, 102, 255),
+	Epic = Color3.fromRGB(255, 153, 51),
+	Legendary = Color3.fromRGB(255, 215, 0),
+	Invalid = Color3.fromRGB(255, 77, 77),
 }
 
 local api
-local frame, promptLabel, timerLabel, input, submit, hintLabel, resultsLabel
+local frame, promptLabel, timerLabel, input, submit, hintLabel
+local cards
+local curRound, curTotal = 0, 0
 
 local locked = true
 local checking = false
@@ -90,12 +94,14 @@ local function onPrompt(text, seconds, round, total)
 	submit.Text = "Lock in"
 	setHint("")
 	promptLabel.Text = text
-	resultsLabel.Text = ("Round %d / %d"):format(round, total)
+	curRound, curTotal = round, total
+	cards.clear()
 
 	task.spawn(function()
 		for t = seconds, 0, -1 do
 			if roundId ~= myRound then return end
-			timerLabel.Text = t .. "s"
+			-- the round counter lives here now that the cards own the space below
+			timerLabel.Text = ("Round %d/%d   %ds"):format(curRound, curTotal, t)
 			task.wait(1)
 		end
 	end)
@@ -108,14 +114,20 @@ local function onResults(results)
 	timerLabel.Text = ""
 	setHint("")
 
-	local lines = {}
+	local rows = {}
 	for _, r in ipairs(results) do
-		table.insert(lines, ('%s: "%s"  <font color="%s">%s +%d</font>  (total %d)'):format(
-			UiKit.escape(r.name), UiKit.escape(r.answer),
-			TIER_COLORS[r.tier] or "#ffffff", r.tier, r.points, r.total
-		))
+		table.insert(rows, {
+			userId = r.userId,
+			name = r.name,
+			headline = ('"%s"'):format(r.answer),
+			trailing = ("+%d"):format(r.points),
+			sub = ("%s   total %d"):format(r.tier, r.total),
+			accent = TIER_COLORS[r.tier] or UiKit.WHITE,
+			-- rare answers are the entire point of Niche, so they get a beat of their own
+			emphasis = r.tier == "Epic" or r.tier == "Legendary",
+		})
 	end
-	resultsLabel.Text = #lines > 0 and table.concat(lines, "\n") or "Nobody answered 💀"
+	cards.show(rows, "Nobody answered")
 end
 
 function Niche.onEvent(kind, ...)
@@ -132,7 +144,7 @@ function Niche.reset()
 	locked = true
 	pendingSuggestion = nil
 	promptLabel.Text = "Get ready..."
-	resultsLabel.Text = ""
+	cards.clear()
 	timerLabel.Text = ""
 	input.Text = ""
 	setHint("")
@@ -168,11 +180,8 @@ function Niche.build(parent, modeApi)
 		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = UiKit.YELLOW, Text = "",
 	})
 
-	resultsLabel = UiKit.label(frame, {
-		Size = UDim2.new(1, -20, 0.46, -10), Position = UDim2.new(0, 10, 0.52, 0),
-		TextWrapped = true, RichText = true, TextSize = 18,
-		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "",
-	})
+	cards = PlayerCards.new(frame,
+		UDim2.new(0, 10, 0.52, 0), UDim2.new(1, -20, 0.46, -10))
 
 	input:GetPropertyChangedSignal("Text"):Connect(function()
 		if pendingSuggestion and input.Text ~= suggestionText then

@@ -111,6 +111,13 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
 - `Cosmetics.luau`: how each cosmetic id looks. Ids must match `Shared/Cosmetics` exactly; an
   unknown id falls back rather than erroring, so a player wearing something this client has not
   heard of still renders.
+- `PlayerCards.luau`: a reveal as a row of players rather than a paragraph - avatar, name, answer
+  and score, framed by the player's equipped banner. `new(parent, position, size)` then
+  `show(rows, emptyText)` / `clear()`. Rows are mode-agnostic:
+  `{ userId, name, headline, trailing, sub, accent, emphasis }`, so each mode maps its own reveal
+  payload in. Rows appear staggered and `emphasis` flashes the outline, which is how rare tiers
+  land. A reveal payload therefore needs `userId`, not just a display name. Niche uses it; the other
+  modes still render plain text and can adopt it the same way.
 - `Modes/<Name>.luau`: one game's screen, client side. See the mode interface below.
 - `Modes/DeepDive.luau`: type an answer, press Enter, repeat against a clock. Each one round-trips
   through ModeRequest and only appears once the server accepts it, showing the canonical spelling

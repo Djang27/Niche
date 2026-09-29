@@ -75,6 +75,7 @@ local function scoreRound(ctx, prompt)
 		ctx.award(player, points)
 
 		table.insert(results, {
+			userId = player.UserId, -- the reveal shows their avatar and banner
 			name = player.DisplayName,
 			answer = j.answer and AnswerJudge.prettify(j.answer) or "?",
 			tier = j.tier or "Invalid",
