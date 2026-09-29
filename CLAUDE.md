@@ -28,15 +28,17 @@ src/server/ (-> ServerScriptService)
   about prompts or answers. The whole match runs inside a pcall: an error drops back to the lobby rather
   than hanging the server forever.
 - `Modes/<Name>/init.luau`: one game, server side. See the mode interface below.
-- `Modes/Niche/PromptData.luau`: builds every prompt at startup from the modules in `Lists/`, and `pickPrompts(n)`
+- `Shared/PromptData.luau`: builds every prompt at startup from the modules in `Lists/`, and `pickPrompts(n)`
   (different category per round when possible, letter prompts ~35%, no repeats within the last 20 on a server).
-- `Modes/Niche/AnswerJudge.luau`: normalizes answers, exact match (aliases + simple plurals), suggestions
+- `Shared/AnswerJudge.luau`: normalizes answers, exact match (aliases + simple plurals), suggestions
   (unique 4+ letter prefix, or typo within edit distance 1 for 3-5 letters / 2 for 6+), scoring.
-- `Modes/Niche/AnswerLog.luau`: counts what players type, buffered in memory and batch-written to a
+- `Shared/AnswerLog.luau`: counts what players type, buffered in memory and batch-written to a
   DataStore every 2 min and on shutdown. Read it from the command bar (Server context) with
-  `require(game.ServerScriptService.Modes.Niche.AnswerLog).report()`. Owner-only diagnostics: the
+  `require(game.ServerScriptService.Shared.AnswerLog).report()`. Owner-only diagnostics: the
   rejected bucket is raw player text and must never reach a client unfiltered.
-- `Modes/Niche/Lists/*.luau`: one module per category. Pure data.
+- `Shared/Lists/*.luau`: one module per category. Pure data. These four live in `Shared/` rather
+  than under Niche because Deep Dive validates its words against the same lists - a mode may never
+  reach into another mode, so anything two games need belongs here.
 - `Modes/DeepDive/init.luau`: a category appears, everyone types related words at once, and you
   score 1 point per word nobody else wrote. Matching is **normalisation only, never fuzzy** -
   lowercase, strip punctuation, strip a plural `s` (skipping short words and `ss` endings). Edit

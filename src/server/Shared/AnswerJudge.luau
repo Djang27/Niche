@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Modes > Niche > AnswerJudge
+-- ModuleScript: ServerScriptService > Shared > AnswerJudge
 
 local PromptData = require(script.Parent.PromptData)
 

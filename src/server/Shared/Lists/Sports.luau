@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Modes > Niche > Lists > Sports
+-- ModuleScript: ServerScriptService > Shared > Lists > Sports
 
 return {
 	noun = "a sport",

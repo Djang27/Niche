@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Modes > Niche > Lists > Instruments
+-- ModuleScript: ServerScriptService > Shared > Lists > Instruments
 
 return {
 	noun = "an instrument",

@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Modes > Niche > Lists > Vegetables
+-- ModuleScript: ServerScriptService > Shared > Lists > Vegetables
 
 return {
 	noun = "a vegetable",

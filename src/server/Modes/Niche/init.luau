@@ -4,9 +4,9 @@
 -- The shell (RoundManager) owns the lobby, scores and podium. This module owns
 -- everything specific to Niche: which prompt, how long, and what an answer is worth.
 
-local PromptData = require(script.PromptData)
-local AnswerJudge = require(script.AnswerJudge)
-local AnswerLog = require(script.AnswerLog)
+local PromptData = require(script.Parent.Parent.Shared.PromptData)
+local AnswerJudge = require(script.Parent.Parent.Shared.AnswerJudge)
+local AnswerLog = require(script.Parent.Parent.Shared.AnswerLog)
 
 local Niche = {
 	name = "Niche",

@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Modes > Niche > PromptData
+-- ModuleScript: ServerScriptService > Shared > PromptData
 -- Builds every prompt automatically from the modules in the sibling Lists folder.
 -- To add a new category, just add a new ModuleScript to Lists.
 

@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Modes > Niche > Lists > Jobs
+-- ModuleScript: ServerScriptService > Shared > Lists > Jobs
 
 return {
 	noun = "a job",

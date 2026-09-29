@@ -1,4 +1,4 @@
--- ModuleScript: ServerScriptService > Modes > Niche > Lists > Countries
+-- ModuleScript: ServerScriptService > Shared > Lists > Countries
 -- Each item: name, tier, tags, and optionally aliases + tierIn (tier override inside a tagged prompt)
 
 return {
