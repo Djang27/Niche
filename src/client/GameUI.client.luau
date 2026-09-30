@@ -378,7 +378,7 @@ local cosmeticsFolder = ReplicatedStorage:WaitForChild("Cosmetics")
 local lockerFrame = UiKit.panel(gui)
 
 UiKit.label(lockerFrame, {
-	Size = UDim2.new(1, -20, 0.11, 0), Position = UDim2.new(0, 10, 0.03, 0),
+	Size = UDim2.new(1, -20, 0.1, 0), Position = UDim2.new(0, 10, 0.02, 0),
 	max = UiKit.TEXT.title, TextScaled = true, Font = Enum.Font.GothamBold, Text = "Locker",
 })
 -- One tab per cosmetic kind, then TBD slots for categories that don't exist yet. `false`
@@ -395,7 +395,7 @@ for i, kind in ipairs(LOCKER_TABS) do
 	local b = UiKit.button(lockerFrame,
 		kind and (KIND_LABELS[kind] or kind) or "TBD",
 		UiKit.FIELD,
-		UDim2.new(0.25, -8, 0.085, 0), UDim2.new(0.25 * (i - 1), 4, 0.15, 0),
+		UDim2.new(0.25, -8, 0.105, 0), UDim2.new(0.25 * (i - 1), 4, 0.135, 0),
 		UiKit.TEXT.body)
 	b.Activated:Connect(function()
 		lockerTab = i
@@ -411,7 +411,7 @@ local function paintTabs()
 end
 
 local lockerGrid = UiKit.make("ScrollingFrame", {
-	Size = UDim2.new(0.62, -20, 0.5, 0), Position = UDim2.new(0.37, 0, 0.255, 0),
+	Size = UDim2.new(0.62, -20, 0.47, 0), Position = UDim2.new(0.37, 0, 0.26, 0),
 	BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
 	AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), Parent = lockerFrame,
 })
@@ -425,11 +425,11 @@ local lockerLayout = UiKit.make("UIGridLayout", {
 -- phone. Column count drops on a small screen so a swatch never gets too narrow to read.
 UiKit.onViewport(function(compact)
 	local cols = compact and 2 or 3
-	lockerLayout.CellSize = UDim2.new(1 / cols, -10, 0, compact and 104 or 112)
+	lockerLayout.CellSize = UDim2.new(1 / cols, -10, 0, compact and 112 or 120)
 end)
 
 local lockerHint = UiKit.label(lockerFrame, {
-	Size = UDim2.new(1, -20, 0.06, 0), Position = UDim2.new(0, 10, 0.78, 0),
+	Size = UDim2.new(1, -20, 0.055, 0), Position = UDim2.new(0, 10, 0.745, 0),
 	max = UiKit.TEXT.body, TextScaled = true, Font = Enum.Font.GothamMedium,
 	TextColor3 = UiKit.YELLOW, Text = "",
 })
@@ -438,7 +438,7 @@ local lockerHint = UiKit.label(lockerFrame, {
 -- It shows what is actually equipped, repainted when the attribute comes back, so it can
 -- never show something the server refused.
 local previewTile = UiKit.make("Frame", {
-	Size = UDim2.new(0.36, 0, 0.5, 0), Position = UDim2.new(0, 10, 0.255, 0),
+	Size = UDim2.new(0.36, 0, 0.47, 0), Position = UDim2.new(0, 10, 0.26, 0),
 	BackgroundColor3 = UiKit.WHITE, Parent = lockerFrame,
 })
 UiKit.corner(previewTile, 10)
@@ -485,7 +485,7 @@ end
 local lockerSwatches = {}
 
 local lockerEmpty = UiKit.label(lockerFrame, {
-	Size = UDim2.new(0.62, -20, 0.5, 0), Position = UDim2.new(0.37, 0, 0.255, 0),
+	Size = UDim2.new(0.62, -20, 0.47, 0), Position = UDim2.new(0.37, 0, 0.26, 0),
 	TextWrapped = true, TextSize = 15, TextColor3 = UiKit.DIM, Visible = false, Text = "",
 })
 
@@ -557,16 +557,16 @@ buildLocker = function()
 		end
 
 		UiKit.label(sw, {
-			Size = UDim2.new(1, -8, 0, 17), Position = UDim2.new(0, 4, 1, -40),
+			Size = UDim2.new(1, -8, 0, 16), Position = UDim2.new(0, 4, 1, -48),
 			TextSize = 14, Font = Enum.Font.GothamBold, ZIndex = 3, Text = entry.Value,
 		})
 		UiKit.label(sw, {
-			Size = UDim2.new(1, -8, 0, 14), Position = UDim2.new(0, 4, 1, -24),
+			Size = UDim2.new(1, -8, 0, 14), Position = UDim2.new(0, 4, 1, -31),
 			TextSize = 12, Font = Enum.Font.GothamMedium, ZIndex = 3,
 			TextColor3 = rarityColor, Text = rarity,
 		})
 		UiKit.label(sw, {
-			Size = UDim2.new(1, -8, 0, 13), Position = UDim2.new(0, 4, 1, -11),
+			Size = UDim2.new(1, -8, 0, 13), Position = UDim2.new(0, 4, 1, -16),
 			TextSize = 11, ZIndex = 3,
 			TextColor3 = isOn and UiKit.GREEN or UiKit.DIM,
 			Text = (not owned and "Locked")
@@ -605,7 +605,7 @@ for _, kind in ipairs(LOCKER_TABS) do
 end
 
 local lockerBack = UiKit.button(lockerFrame, "Back", UiKit.GRAY,
-	UDim2.new(1, -20, 0.12, 0), UDim2.new(0, 10, 0.85, 0))
+	UDim2.new(1, -20, 0.13, 0), UDim2.new(0, 10, 0.82, 0))
 lockerBack.Activated:Connect(function()
 	lockerHint.Text = ""
 	goTo("menu")
