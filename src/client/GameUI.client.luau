@@ -643,6 +643,328 @@ lockerBack.Activated:Connect(function()
 	goTo("menu")
 end)
 
+---------------------------------------------------------------- store
+
+local cratesFolder = ReplicatedStorage:WaitForChild("Crates")
+local shopRequest = remotes:WaitForChild("ShopRequest")
+
+-- How long the reveal spins before it lands. The server usually answers faster than
+-- this, and that is the point: a crate that resolves the instant you tap has no opening
+-- to it at all. If the DataStore is slow the spin simply keeps going until it answers.
+local SPIN_MIN = 1.6
+
+local shopFrame = UiKit.panel(gui)
+
+UiKit.label(shopFrame, {
+	Size = UDim2.new(0.5, -10, 0.095, 0), Position = UDim2.new(0, 10, 0.02, 0),
+	max = UiKit.TEXT.title, TextScaled = true, Font = Enum.Font.GothamBold,
+	TextXAlignment = Enum.TextXAlignment.Left, Text = "Store",
+})
+
+local shopWallet = UiKit.label(shopFrame, {
+	Size = UDim2.new(0.5, -10, 0.06, 0), Position = UDim2.new(0.5, 0, 0.04, 0),
+	max = UiKit.TEXT.body, TextScaled = true, Font = Enum.Font.GothamBold,
+	TextColor3 = UiKit.YELLOW, TextXAlignment = Enum.TextXAlignment.Right, Text = "",
+})
+
+UiKit.label(shopFrame, {
+	Size = UDim2.new(1, -20, 0.05, 0), Position = UDim2.new(0, 10, 0.125, 0),
+	max = UiKit.TEXT.small, TextScaled = true, TextColor3 = UiKit.DIM,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "Chances are shown on every crate. You never get a duplicate.",
+})
+
+local shopList = UiKit.make("ScrollingFrame", {
+	Size = UDim2.new(1, -20, 0.55, 0), Position = UDim2.new(0, 10, 0.19, 0),
+	BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+	AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), Parent = shopFrame,
+})
+UiKit.make("UIListLayout", {
+	Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = shopList,
+})
+
+local shopHint = UiKit.label(shopFrame, {
+	Size = UDim2.new(1, -20, 0.05, 0), Position = UDim2.new(0, 10, 0.755, 0),
+	max = UiKit.TEXT.body, TextScaled = true, Font = Enum.Font.GothamMedium,
+	TextColor3 = UiKit.YELLOW, Text = "",
+})
+
+---------------------------------------------------------------- the opening
+
+-- Full screen rather than inside the panel: the open is the payoff, and a reveal boxed
+-- inside the shop card reads like a tooltip.
+local openFrame = UiKit.make("Frame", {
+	Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0),
+	BackgroundTransparency = 0.4, Visible = false, ZIndex = 20, Parent = gui,
+})
+
+local openCard = UiKit.make("Frame", {
+	BackgroundColor3 = UiKit.PANEL, ZIndex = 21, Parent = openFrame,
+})
+UiKit.fit(openCard, 0.4, 0.62)
+UiKit.surface(UiKit.corner(openCard, 14))
+
+local openTitle = UiKit.label(openCard, {
+	Size = UDim2.new(1, -20, 0.09, 0), Position = UDim2.new(0, 10, 0.04, 0),
+	max = UiKit.TEXT.heading, TextScaled = true, Font = Enum.Font.GothamBold,
+	ZIndex = 22, Text = "",
+})
+
+-- the swatch doubles as the spinner and as the prize, so the landing is the same object
+-- coming to rest rather than one thing being swapped for another
+local openSwatch = UiKit.make("Frame", {
+	Size = UDim2.new(0.74, 0, 0.36, 0), Position = UDim2.new(0.5, 0, 0.16, 0),
+	AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = UiKit.WHITE,
+	ZIndex = 22, Parent = openCard,
+})
+UiKit.corner(openSwatch, 10)
+local openGradient = UiKit.make("UIGradient", { Rotation = 90, Parent = openSwatch })
+local openStroke = UiKit.make("UIStroke", { Thickness = 2, Transparency = 0.15, Parent = openSwatch })
+
+local openRarity = UiKit.label(openCard, {
+	Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.55, 0),
+	max = UiKit.TEXT.body, TextScaled = true, Font = Enum.Font.GothamBold, ZIndex = 22, Text = "",
+})
+local openName = UiKit.label(openCard, {
+	Size = UDim2.new(1, -20, 0.1, 0), Position = UDim2.new(0, 10, 0.63, 0),
+	max = UiKit.TEXT.title, TextScaled = true, Font = Enum.Font.GothamBlack, ZIndex = 22, Text = "",
+})
+
+local openEquip = UiKit.button(openCard, "Equip", UiKit.ACCENT,
+	UDim2.new(0.44, 0, 0.11, 0), UDim2.new(0.03, 0, 0.76, 0))
+local openClose = UiKit.button(openCard, "Close", UiKit.GRAY,
+	UDim2.new(0.44, 0, 0.11, 0), UDim2.new(0.53, 0, 0.76, 0))
+openEquip.ZIndex, openClose.ZIndex = 22, 22
+
+local spinGeneration = 0
+
+local function closeOpen()
+	spinGeneration += 1 -- any spin still running belongs to a dead reveal
+	openFrame.Visible = false
+end
+openClose.Activated:Connect(closeOpen)
+
+-- Only banners exist as art today; if a crate ever rolls a kind this client cannot draw,
+-- `Cosmetics.banner` falls back rather than erroring.
+local function bannerIds()
+	local out = {}
+	for _, entry in ipairs(cosmeticsFolder:GetChildren()) do
+		if entry:GetAttribute("Kind") == "Banner" then
+			table.insert(out, entry.Name)
+		end
+	end
+	return out
+end
+
+local function paintSwatch(id)
+	local skin = Cosmetics.banner(id)
+	openGradient.Color = ColorSequence.new(skin.from, skin.to)
+	openStroke.Color = skin.edge
+end
+
+local shopBusy = false
+local buildShop
+
+local function runOpen(crateId, currency, crateName)
+	if shopBusy then
+		return
+	end
+	shopBusy = true
+	shopHint.Text = ""
+
+	spinGeneration += 1
+	local gen = spinGeneration
+
+	openTitle.Text = "Opening " .. crateName
+	openRarity.Text = ""
+	openName.Text = ""
+	openEquip.Visible = false
+	openClose.Visible = false
+	openFrame.Visible = true
+
+	local answered, status, prize = false, nil, nil
+	task.spawn(function()
+		local ok, a, b = pcall(function()
+			return shopRequest:InvokeServer("open", crateId, currency)
+		end)
+		status = ok and a or "failed"
+		prize = ok and b or nil
+		answered = true
+	end)
+
+	task.spawn(function()
+		local ids = bannerIds()
+		local elapsed, step = 0, 0.05
+		while gen == spinGeneration and (elapsed < SPIN_MIN or not answered) do
+			if #ids > 0 then
+				paintSwatch(ids[math.random(#ids)])
+			end
+			task.wait(step)
+			elapsed += step
+			-- slow down as it approaches the landing, so it settles rather than stops dead
+			if elapsed > SPIN_MIN * 0.55 then
+				step = math.min(0.2, step * 1.14)
+			end
+		end
+
+		shopBusy = false
+		if gen ~= spinGeneration then
+			return -- the player closed it, or started another open
+		end
+
+		if status ~= "ok" or not prize then
+			local reason = ({
+				poor = "You can't afford that yet",
+				empty = "You already own everything in this crate",
+				currency = "That crate can't be bought that way",
+				unknown = "That crate isn't available",
+			})[status] or "Something went wrong - nothing was charged"
+			openTitle.Text = "No luck"
+			openRarity.Text = ""
+			openName.Text = reason
+			openName.TextColor3 = UiKit.DIM
+			openClose.Visible = true
+			buildShop()
+			return
+		end
+
+		local entry = cosmeticsFolder:FindFirstChild(prize)
+		local rarity = entry and entry:GetAttribute("Rarity") or "Common"
+		paintSwatch(prize)
+		openTitle.Text = "You unboxed"
+		openRarity.Text = rarity:upper()
+		openRarity.TextColor3 = Cosmetics.rarity(rarity)
+		openName.Text = entry and entry.Value or prize
+		openName.TextColor3 = UiKit.WHITE
+		openEquip.Visible = entry ~= nil
+		openClose.Visible = true
+
+		openEquip.Activated:Once(function()
+			remotes.LobbyAction:FireServer("equip", prize)
+			closeOpen()
+		end)
+
+		buildShop() -- the balance just changed
+	end)
+end
+
+---------------------------------------------------------------- crate cards
+
+local shopCards = {}
+
+local function crateCard(entry, order)
+	local gold = entry:GetAttribute("Gold") or 0
+	local gems = entry:GetAttribute("Gems") or 0
+
+	local card = UiKit.make("Frame", {
+		Size = UDim2.new(1, -8, 0, 124), BackgroundColor3 = UiKit.FIELD,
+		LayoutOrder = order, Parent = shopList,
+	})
+	UiKit.corner(card, 10)
+	UiKit.make("UIStroke", { Color = UiKit.EDGE, Thickness = 1, Transparency = 0.5, Parent = card })
+
+	UiKit.label(card, {
+		Size = UDim2.new(1, -20, 0, 26), Position = UDim2.fromOffset(10, 8),
+		max = UiKit.TEXT.heading, TextScaled = true, Font = Enum.Font.GothamBold,
+		TextXAlignment = Enum.TextXAlignment.Left, Text = entry.Value,
+	})
+
+	-- The odds row, in its own container so the quarter-width chips divide the padded
+	-- width rather than the card's - laying them out against the card directly overflows
+	-- it by the padding. Rarity is carried by the text colour on a plain chip, not a
+	-- coloured fill: at this size coloured text on dark reads and dark text on colour
+	-- does not. Name above percentage rather than beside it, because these have to stay
+	-- legible on a phone and "Legendary" abbreviated to fit is a worse disclosure.
+	local oddsRow = UiKit.make("Frame", {
+		Size = UDim2.new(1, -20, 0, 28), Position = UDim2.fromOffset(10, 38),
+		BackgroundTransparency = 1, Parent = card,
+	})
+	for i, rarity in ipairs({ "Common", "Rare", "Epic", "Legendary" }) do
+		local pct = entry:GetAttribute("Odds" .. rarity) or 0
+		local chip = UiKit.make("Frame", {
+			Size = UDim2.new(0.25, -5, 1, 0), Position = UDim2.new(0.25 * (i - 1), 3, 0, 0),
+			BackgroundColor3 = UiKit.PANEL, BackgroundTransparency = pct > 0 and 0 or 0.65,
+			Parent = oddsRow,
+		})
+		UiKit.corner(chip, 6)
+		local tint = pct > 0 and Cosmetics.rarity(rarity) or UiKit.DIM
+		UiKit.label(chip, {
+			Size = UDim2.new(1, -6, 0, 13), Position = UDim2.fromOffset(3, 2),
+			max = UiKit.TEXT.small, TextScaled = true, Font = Enum.Font.GothamBold,
+			TextColor3 = tint, Text = rarity,
+		})
+		UiKit.label(chip, {
+			Size = UDim2.new(1, -6, 0, 11), Position = UDim2.fromOffset(3, 15),
+			max = UiKit.TEXT.small, TextScaled = true, Font = Enum.Font.GothamMedium,
+			TextColor3 = tint, Text = ("%d%%"):format(pct),
+		})
+	end
+
+	local function priceButton(label, colour, size, pos, currency, amount)
+		local b = UiKit.button(card, label, colour, size, pos, UiKit.TEXT.body)
+		local afford = (player:GetAttribute(currency == "gold" and "Gold" or "Gems") or 0) >= amount
+		if not afford then
+			b.BackgroundColor3 = UiKit.GRAY
+			b.TextTransparency = 0.35
+		end
+		b.Activated:Connect(function()
+			if not afford then
+				shopHint.Text = ("You need %d %s"):format(amount, currency)
+				return
+			end
+			runOpen(entry.Name, currency, entry.Value)
+		end)
+		return b
+	end
+
+	local both = gold > 0 and gems > 0
+	local halfSize = UDim2.new(0.48, -13, 0, 40)
+	local fullSize = UDim2.new(1, -20, 0, 40)
+	if gold > 0 then
+		priceButton(("%d gold"):format(gold), UiKit.YELLOW:Lerp(UiKit.GRAY, 0.4),
+			both and halfSize or fullSize, UDim2.fromOffset(10, 74), "gold", gold)
+	end
+	if gems > 0 then
+		priceButton(("%d gems"):format(gems), UiKit.BLUE,
+			both and halfSize or fullSize,
+			both and UDim2.new(0.52, 3, 0, 74) or UDim2.fromOffset(10, 74), "gems", gems)
+	end
+
+	return card
+end
+
+buildShop = function()
+	shopWallet.Text = currencyText()
+
+	for _, c in ipairs(shopCards) do
+		c:Destroy()
+	end
+	table.clear(shopCards)
+
+	local entries = cratesFolder:GetChildren()
+	table.sort(entries, function(a, b)
+		return (a:GetAttribute("Order") or 99) < (b:GetAttribute("Order") or 99)
+	end)
+	for i, entry in ipairs(entries) do
+		table.insert(shopCards, crateCard(entry, i))
+	end
+end
+
+for _, attr in ipairs({ "Gold", "Gems", "OwnedCosmetics" }) do
+	player:GetAttributeChangedSignal(attr):Connect(function()
+		if nav == "shop" then
+			buildShop()
+		end
+	end)
+end
+
+local shopBack = UiKit.button(shopFrame, "Back", UiKit.GRAY,
+	UDim2.new(1, -20, 0.13, 0), UDim2.new(0, 10, 0.82, 0))
+shopBack.Activated:Connect(function()
+	shopHint.Text = ""
+	goTo("menu")
+end)
+
 ---------------------------------------------------------------- main menu
 
 local menuFrame = UiKit.panel(gui)
@@ -683,7 +1005,8 @@ lockerButton.Activated:Connect(function()
 	goTo("locker")
 end)
 storeButton.Activated:Connect(function()
-	menuHint.Text = "The store isn't built yet"
+	menuHint.Text = ""
+	goTo("shop")
 end)
 
 ---------------------------------------------------------------- game modes
@@ -1068,12 +1391,17 @@ local function render()
 	introFrame.Visible = screen == "intro"
 	recapFrame.Visible = screen == "recap"
 	lockerFrame.Visible = screen == "locker"
+	shopFrame.Visible = screen == "shop"
 	menuFrame.Visible = screen == "menu"
 	modesFrame.Visible = screen == "modes"
 	groupFrame.Visible = screen == "group"
 	lobbyFrame.Visible = screen == "lobby"
 	podiumFrame.Visible = screen == "podium"
 	scoreStrip.Visible = screen == "game"
+
+	if openFrame.Visible and screen ~= "shop" then
+		closeOpen()
+	end
 
 	local waiting = ReplicatedStorage:GetAttribute("Waiting")
 	waitingLabel.Visible = screen == "game" and waiting ~= nil and waiting ~= ""
@@ -1095,6 +1423,8 @@ local function render()
 			buildRecap()
 		elseif screen == "locker" then
 			buildLocker()
+		elseif screen == "shop" then
+			buildShop()
 		end
 	end
 
@@ -1104,6 +1434,8 @@ local function render()
 		renderScore()
 	elseif screen == "menu" then
 		menuWallet.Text = currencyText()
+	elseif screen == "shop" then
+		shopWallet.Text = currencyText()
 	end
 end
 

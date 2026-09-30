@@ -27,14 +27,22 @@ local store = nil
 
 local cache = {}  -- [player] = { data = {}, loaded = bool, dirty = bool }
 
+-- Development only, and the twin of DEV_UNLOCK_ALL in Cosmetics: a new profile starts
+-- with enough to open crates. Gold is otherwise only earned by finishing matches, so
+-- without this the shop takes a dozen playtests to reach even once. **Both must be zero
+-- before anything is sold.** Only ever applied to a genuinely new profile, so flipping
+-- them back does not take anything off an existing player.
+local DEV_START_GOLD = 2000
+local DEV_START_GEMS = 200
+
 local function blank()
 	return {
 		version = 1,
 		banner = nil,
 		revealEffect = nil,
-		gold = 0,   -- earned by playing
-		gems = 0,   -- bought with Robux
-		owned = {}, -- [cosmeticId] = true
+		gold = DEV_START_GOLD, -- earned by playing
+		gems = DEV_START_GEMS, -- bought with Robux
+		owned = {},            -- [cosmeticId] = true
 	}
 end
 

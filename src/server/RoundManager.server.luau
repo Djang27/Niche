@@ -14,6 +14,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Cosmetics = require(script.Parent.Shared.Cosmetics)
+local Crates = require(script.Parent.Shared.Crates)
 local Profile = require(script.Parent.Shared.Profile)
 
 Players.CharacterAutoLoads = false -- menu-style game, no characters
@@ -50,6 +51,10 @@ local ModeEvent = makeRemote("ModeEvent")     -- both directions, first arg is a
 local ModeRequest = Instance.new("RemoteFunction") -- client asks the mode something
 ModeRequest.Name = "ModeRequest"
 ModeRequest.Parent = remotes
+
+local ShopRequest = Instance.new("RemoteFunction") -- client buys a crate and is told what it got
+ShopRequest.Name = "ShopRequest"
+ShopRequest.Parent = remotes
 
 ---------------------------------------------------------------- state
 -- Clients read these through attributes:
@@ -134,6 +139,38 @@ for id, item in pairs(Cosmetics.Items) do
 	entry:SetAttribute("Owned", Cosmetics.ownedBy(nil, id))
 	entry:SetAttribute("Free", Cosmetics.isFree(id))
 	entry.Parent = cosmeticsFolder
+end
+
+-- Crates replicate their odds because they have to: gems are bought with Robux, so a
+-- crate is a paid random item and the chances must be readable before you spend. One
+-- attribute per rarity, which is also exactly how the shop renders them.
+local cratesFolder = Instance.new("Folder")
+cratesFolder.Name = "Crates"
+cratesFolder.Parent = ReplicatedStorage
+
+for id, crate in pairs(Crates.All) do
+	local entry = Instance.new("StringValue")
+	entry.Name = id
+	entry.Value = crate.name
+	entry:SetAttribute("Order", crate.order or 99)
+	entry:SetAttribute("Gold", crate.gold or 0)
+	entry:SetAttribute("Gems", crate.gems or 0)
+	for _, rarity in ipairs(Cosmetics.RARITIES) do
+		entry:SetAttribute("Odds" .. rarity, crate.odds[rarity] or 0)
+	end
+	entry.Parent = cratesFolder
+end
+
+-- Buying is a request, not an event, for the same reason Deep Dive's answers are: the
+-- client must never show a prize the server did not actually grant.
+ShopRequest.OnServerInvoke = function(player, kind, crateId, currency)
+	if kind ~= "open" then
+		return "unknown"
+	end
+	if typeof(crateId) ~= "string" or typeof(currency) ~= "string" then
+		return "unknown"
+	end
+	return Crates.open(player, crateId, currency)
 end
 
 local function setActiveMode(mode)

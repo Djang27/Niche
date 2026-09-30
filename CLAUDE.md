@@ -68,6 +68,14 @@ src/server/ (-> ServerScriptService)
   nil for the global question ("free to everyone", what the replicated catalogue needs) or a player
   for the real answer, which now reads their `owned` set. `publish(player)` pushes gold, gems and
   the owned list onto attributes.
+- `Shared/Crates.luau`: crate definitions and the roll. Each crate has a gold price, a gems price
+  (0 = not buyable that way) and `odds` by rarity, checked at startup to total 100. `open(player,
+  crateId, currency)` picks a rarity by those odds, then a random item of that rarity the player
+  does **not** own, and deducts + grants in one `Profile.transact` so a rejoin race cannot spend the
+  same gold twice. **No duplicates ever**: the pool is unowned-only, the sale is refused once you
+  own everything in the crate ("empty"), and that is what keeps the published odds literally true
+  for every roll that actually happens - there is no duplicate-compensation rule to explain.
+  Ownership is read via `Cosmetics.trulyOwnedBy`, which ignores `DEV_UNLOCK_ALL` on purpose.
 - `Shared/Profile.luau`: per-player saved data, and the **first thing here to persist anything about
   a person** - AnswerLog is anonymous aggregate data keyed by prompt. Three rules it enforces: a
   failed load never saves (writing defaults over data we could not read would destroy it, so a
@@ -140,6 +148,16 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   equipping blind is the main thing a locker should fix. Equipping fires `LobbyAction "equip"`, and
   both the swatches and the preview repaint when the attribute comes back rather than assuming it
   worked, so neither can ever show something the server refused.
+  The **store** (also off the menu) is a card per crate from `ReplicatedStorage.Crates`: name, the
+  four rarity chances as coloured chips, and a price button per currency, greyed when you cannot
+  afford it. The chances are on the card rather than behind a link because a crate bought with
+  gems is a paid random item. Opening is a full-screen overlay, not a panel inset: the reveal is
+  the payoff and boxing it inside the shop card reads like a tooltip. One swatch both spins and
+  lands, so the prize is the spinner coming to rest rather than a second object swapped in, and it
+  spins for at least `SPIN_MIN` even when the server answers sooner - a crate that resolves the
+  instant you tap has no opening to it. A `spinGeneration` counter kills a spin whose reveal is
+  already gone, the same guard `PlayerCards` uses. The overlay is not one of `render()`'s screens,
+  so it is closed explicitly when the screen changes or a match starts under it.
 - `UiKit.luau`: the whole design system - palette, `SPACE`/`TEXT`/`RADIUS` scales, and the
   `panel`/`label`/`button`/`field`/`corner`/`escape` helpers. Screens must use the scales rather than
   raw numbers. `TEXT` values are **ceilings for TextScaled text, not fixed sizes**: TextScaled alone
@@ -249,6 +267,9 @@ reach the server half. The shell calls `reset()` when a match ends.
   on and honours the dev override; `Free` records what the item would really cost, so the two stay
   distinguishable once the override is off. The locker builds from this; the client already owns
   the visuals, so only names and lock state need replicating.
+- `ReplicatedStorage.Crates`: one StringValue per crate (Name = crate id, Value = display name,
+  attributes `Order`, `Gold`, `Gems`, and `Odds<Rarity>` per rarity). The odds replicate because
+  they **have to be readable before you spend** - see the paid-random-item rule below.
 - `ReplicatedStorage.AvailableModes`: one StringValue per loadable mode (Name = module name,
   Value = display name, attributes `MinPlayers` and `MaxPlayers`, where 0 means no cap). The client
   builds the modes screen from this intersected with the modes it has screens for, so nothing is
@@ -263,6 +284,9 @@ All shell-owned and mode-agnostic. Modes never create their own remotes.
 - RemoteEvent `MatchOver`: server -> client, final standings plus the optional `matchSummary` line
 - RemoteEvent `ModeEvent`: both directions, first arg is a kind string the active mode defines
 - RemoteFunction `ModeRequest`: client asks the active mode something, first arg is a kind string
+- RemoteFunction `ShopRequest`: `("open", crateId, currency)` -> status, itemId. Status is
+  ok | unknown | currency | poor | empty | failed. Buying is a **request, not an event**, for the
+  same reason Deep Dive's answers are: the client must never show a prize the server did not grant.
 
 Niche's kinds: "prompt" and "results" (server -> client), "submit" (client -> server), and "check" on
 ModeRequest (returns status, canonicalAnswer, displayText; status is valid | suggest | invalid | slow | closed).
@@ -330,7 +354,10 @@ return {
   consequences accepted. Verify the current rules with Roblox directly; they move.
 - `DEV_UNLOCK_ALL` in `Shared/Cosmetics.luau` **must be false before anything is sold**, or the
   ownership gate is decorative. It exists so the catalogue is wearable during development without
-  faking every item's `free` flag.
+  faking every item's `free` flag. `DEV_START_GOLD`/`DEV_START_GEMS` in
+  `Shared/Profile.luau` are the same kind of flag and **must be 0 before anything is sold**.
+  Crates roll against `Cosmetics.trulyOwnedBy`, which ignores the unlock override on purpose -
+  honouring it would make every crate pool read as fully owned and the shop unable to sell.
 - Never sell anything that affects scoring (future monetization is cosmetic / host controls only).
   `Shared/Cosmetics.luau` is where that is enforced: entitlements are server-decided, cosmetic-only,
   and a client never asserts what it owns. Keep all three properties when adding to it.

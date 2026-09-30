@@ -80,6 +80,18 @@ first, or use a heredoc.
 like that and the ownership gate is decorative — everyone gets everything. Each item keeps
 its real `free` flag, so flipping the one constant restores the true lock states.
 
+**`DEV_START_GOLD` (2000) and `DEV_START_GEMS` (200) in `src/server/Shared/Profile.luau`
+are its twin.** A new profile starts rich so the shop can be opened on the first playtest
+instead of after a dozen matches. Both must be `0` before anything is sold. They only ever
+apply to a genuinely new profile, so setting them back does not take currency off anyone
+who already has some.
+
+**Crates deliberately ignore `DEV_UNLOCK_ALL`.** They roll against
+`Cosmetics.trulyOwnedBy`, not `ownedBy`. If they honoured the override every crate pool
+would read as fully owned and the shop could never sell anything while it is on. The
+side effect during development: unboxing something does not visibly change the locker,
+because the locker already shows everything as unlocked.
+
 ---
 
 ## Do not do these

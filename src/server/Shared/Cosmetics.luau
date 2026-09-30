@@ -98,6 +98,24 @@ function Cosmetics.ownedList(player)
 	return out
 end
 
+-- Real ownership, ignoring DEV_UNLOCK_ALL. Crates roll against this: the dev override
+-- exists to preview cosmetics in the locker, and if crates honoured it every pool would
+-- read as fully owned and the shop could never sell anything while it is on.
+function Cosmetics.trulyOwnedBy(player, id)
+	local item = Cosmetics.Items[id]
+	if not item then
+		return false
+	end
+	if item.free == true then
+		return true
+	end
+	if not player then
+		return false
+	end
+	local owned = Profile.get(player).owned
+	return owned ~= nil and owned[id] == true
+end
+
 -- what the locker should show as locked, independent of the dev override
 function Cosmetics.isFree(id)
 	local item = Cosmetics.Items[id]
