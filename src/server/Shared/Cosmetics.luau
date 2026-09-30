@@ -11,7 +11,12 @@
 --   3. Ids replicate, not visuals. The client has its own catalogue keyed by the same
 --      ids and decides how each one looks, the same split modes already use.
 
+local Profile = require(script.Parent.Profile)
+
 local Cosmetics = {}
+
+-- profile field per kind, so a saved choice survives a rejoin
+local FIELD = { Banner = "banner", RevealEffect = "revealEffect" }
 
 -- kind -> what a player wears/uses. Add kinds here as they are built.
 Cosmetics.KINDS = { "Banner", "RevealEffect" }
@@ -19,18 +24,27 @@ Cosmetics.KINDS = { "Banner", "RevealEffect" }
 -- `free = true` means everyone has it. Anything else needs an ownership source, which
 -- is deliberately not wired yet - see ownedBy below.
 Cosmetics.Items = {
-	-- banners: the frame around your avatar on the match intro screen
-	slate    = { kind = "Banner", name = "Slate", free = true },
-	sunrise  = { kind = "Banner", name = "Sunrise", free = true },
-	deep     = { kind = "Banner", name = "Deep", free = true },
-	forest   = { kind = "Banner", name = "Forest", free = true },
-	-- not free, so the gate below has something to actually refuse
-	aurora   = { kind = "Banner", name = "Aurora" },
+	-- banners frame your avatar on the intro screen, the between-round recap, and every
+	-- reveal card - three surfaces a round, which is why they are worth owning
+	slate    = { kind = "Banner", name = "Slate", free = true, order = 1 },
+	storm    = { kind = "Banner", name = "Storm", free = true, order = 2 },
+	deep     = { kind = "Banner", name = "Deep", free = true, order = 3 },
+	ocean    = { kind = "Banner", name = "Ocean", free = true, order = 4 },
+	forest   = { kind = "Banner", name = "Forest", free = true, order = 5 },
+	mint     = { kind = "Banner", name = "Mint", free = true, order = 6 },
+	sunrise  = { kind = "Banner", name = "Sunrise", free = true, order = 7 },
+	ember    = { kind = "Banner", name = "Ember", free = true, order = 8 },
+	rose     = { kind = "Banner", name = "Rose", free = true, order = 9 },
+	-- not free, so the gate below has something to actually refuse and the locker has
+	-- something to want
+	aurora   = { kind = "Banner", name = "Aurora", order = 10 },
+	gold     = { kind = "Banner", name = "Gold", order = 11 },
+	void     = { kind = "Banner", name = "Void", order = 12 },
 
 	-- reveal effects: how your answer lands at a reveal. Catalogued so the shape is
 	-- proven, but nothing renders them yet - building unowned cosmetics is waste.
-	plain    = { kind = "RevealEffect", name = "Plain", free = true },
-	emberise = { kind = "RevealEffect", name = "Ember" },
+	plain    = { kind = "RevealEffect", name = "Plain", free = true, order = 1 },
+	emberise = { kind = "RevealEffect", name = "Ember", order = 2 },
 }
 
 Cosmetics.Defaults = { Banner = "slate", RevealEffect = "plain" }
@@ -70,14 +84,27 @@ function Cosmetics.equip(player, kind, id)
 		return false
 	end
 	player:SetAttribute(kind, id)
+	Profile.set(player, FIELD[kind], id)
 	return true
 end
 
--- Called when a player joins: put them in valid defaults so no attribute is ever unset.
--- Later this is where saved choices would be loaded.
+-- Called the moment a player joins, before anything has loaded, so no attribute is ever
+-- unset and the client never has to handle nil.
 function Cosmetics.applyDefaults(player)
 	for _, kind in ipairs(Cosmetics.KINDS) do
 		player:SetAttribute(kind, Cosmetics.equipped(player, kind))
+	end
+end
+
+-- Yields on the DataStore, so call it in a spawned thread. Until it lands the player
+-- wears defaults, which is why applyDefaults runs first rather than instead.
+function Cosmetics.restore(player)
+	local data = Profile.load(player)
+	for _, kind in ipairs(Cosmetics.KINDS) do
+		local saved = data[FIELD[kind]]
+		if saved and player.Parent then
+			Cosmetics.equip(player, kind, saved)
+		end
 	end
 end
 

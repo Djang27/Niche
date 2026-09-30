@@ -112,6 +112,23 @@ for _, id in ipairs(modeOrder) do
 	entry.Parent = availableModes
 end
 
+-- The locker needs names and lock state; the client already owns the visuals. Ownership
+-- is "is it free" for now - when gamepasses arrive this needs a per-player channel, since
+-- what you own stops being the same for everyone.
+local cosmeticsFolder = Instance.new("Folder")
+cosmeticsFolder.Name = "Cosmetics"
+cosmeticsFolder.Parent = ReplicatedStorage
+
+for id, item in pairs(Cosmetics.Items) do
+	local entry = Instance.new("StringValue")
+	entry.Name = id
+	entry.Value = item.name
+	entry:SetAttribute("Kind", item.kind)
+	entry:SetAttribute("Free", item.free == true)
+	entry:SetAttribute("Order", item.order or 99)
+	entry.Parent = cosmeticsFolder
+end
+
 local function setActiveMode(mode)
 	activeMode = mode
 	ReplicatedStorage:SetAttribute("ActiveMode", mode.id)
@@ -136,8 +153,10 @@ local function onPlayerAdded(player)
 	player:SetAttribute("InMatch", false)
 	player:SetAttribute("InLobby", false) -- everyone starts on the menu, not in the lobby
 	-- equipped cosmetics are attributes so they replicate: your banner is something the
-	-- whole room sees, not just you
+	-- whole room sees, not just you. Defaults immediately, saved choices when they load -
+	-- a DataStore round trip must never hold up joining.
 	Cosmetics.applyDefaults(player)
+	task.spawn(Cosmetics.restore, player)
 	table.insert(joinOrder, player)
 	updateHost()
 end
@@ -297,6 +316,12 @@ LobbyAction.OnServerEvent:Connect(function(player, action, value)
 	elseif action == "start" then
 		if state == "Lobby" and isHost then
 			forceStart = true
+		end
+	elseif action == "equip" then
+		-- the catalogue knows each item's kind, and Cosmetics.equip refuses anything the
+		-- player does not own, so nothing here needs to trust the client
+		if typeof(value) == "string" and Cosmetics.Items[value] then
+			Cosmetics.equip(player, Cosmetics.Items[value].kind, value)
 		end
 	elseif action == "setMode" then
 		-- lobby only: swapping games during the countdown or a match would strand clients

@@ -117,7 +117,7 @@ first, or use a heredoc.
 |---|---|
 | Grow the lists — depth (~200 entries; Jobs 140, Sports 116) and breadth (no pop culture at all) | Nothing. Pure data. |
 | Playtest fixes and data-driven tiers | **Real players** generating answer-log data |
-| Equip UI / inventory | Needs the **first per-player DataStore** — a picker that forgets your choice is worse than none. Use a versioned key. |
+| ~~Equip UI / inventory~~ | **Done 2026-09-29** — locker off the menu, 12 banners, choices saved via `Shared/Profile.luau` |
 | Ranked-lite (Elo, ranks, leaderboard) | Deferred: nobody to calibrate against. Co-op can never be ranked; Teams must be team-vs-team. |
 | Deep Dive `minPlayers` | A decision. At 2 players almost nothing collides, so nearly everything scores. |
 

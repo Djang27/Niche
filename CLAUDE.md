@@ -53,11 +53,19 @@ src/server/ (-> ServerScriptService)
 - `Shared/TextFilter.luau`: TextService wrapper for any player-typed text other players will see.
   `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
-- `Shared/Cosmetics.luau`: the entitlement seam. Catalogue of items by kind (`Banner`,
-  `RevealEffect`), `ownedBy`, `equipped`, `equip`, `applyDefaults`. Nothing is monetised yet and
-  only `free = true` items pass the gate - when gamepasses arrive, `ownedBy` is the one place that
-  changes. Equipped ids replicate as player attributes; **visuals live on the client**, so a client
-  can restyle but never grant itself anything. There is no equip UI yet, so `equip` has no caller.
+- `Shared/Cosmetics.luau`: the entitlement seam. Catalogue by kind (`Banner` x12, `RevealEffect`),
+  plus `ownedBy`, `equipped`, `equip`, `applyDefaults`, `restore`. Only `free = true` items pass the
+  gate - when gamepasses arrive, `ownedBy` is the one place that changes, though the locker will
+  also need a per-player ownership channel since "what you own" stops being the same for everyone.
+  Equipped ids replicate as player attributes; **visuals live on the client**, so a client can
+  restyle but never grant itself anything. `equip` also writes through to `Profile`.
+- `Shared/Profile.luau`: per-player saved data, and the **first thing here to persist anything about
+  a person** - AnswerLog is anonymous aggregate data keyed by prompt. Three rules it enforces: a
+  failed load never saves (writing defaults over data we could not read would destroy it, so a
+  failed profile is read-only for the session); the store name carries a version so a bad schema can
+  be abandoned rather than migrated under pressure; and loading is async so a DataStore outage never
+  stops anyone playing. `applyDefaults` runs instantly on join, `restore` catches up when the read
+  lands.
 - `Shared/Wavelength.luau`: rules every Wavelength mode agrees on - `score(distance)` proximity bands,
   `newTarget()`, `cleanClue(text, maxLen)`, `orderedPlayers(ctx)` - plus `newRotatingMode(config)`, the
   factory Solo and Co-op are both built from. Those two run an identical round (one clue giver,
@@ -107,7 +115,10 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   avatar needs a ViewportFrame and a loaded rig per player, which is a lot of 3D rendering for a
   phone to do mid-match. The modes screen lists playable games
   first, then greyed-out entries from its `PLANNED` list - a planned name drops off automatically once
-  a real module with that name exists.
+  a real module with that name exists. The **locker** (off the menu) lists every banner from
+  `ReplicatedStorage.Cosmetics`, ordered, with owned ones tappable and locked ones dimmed but
+  visible. Equipping fires `LobbyAction "equip"` and repaints when the attribute comes back, rather
+  than assuming it worked.
 - `UiKit.luau`: the whole design system - palette, `SPACE`/`TEXT`/`RADIUS` scales, and the
   `panel`/`label`/`button`/`field`/`corner`/`escape` helpers. Screens must use the scales rather than
   raw numbers. `TEXT` values are **ceilings for TextScaled text, not fixed sizes**: TextScaled alone
@@ -208,6 +219,9 @@ reach the server half. The shell calls `reset()` when a match ends.
   good round even from last place), `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
   rather than browsing the menu or store). Only `InLobby` players count towards starting a match and
   only they get pulled into one, so an idle player on the menu can never block a countdown.
+- `ReplicatedStorage.Cosmetics`: one StringValue per catalogue item (Name = id, Value = display
+  name, attributes `Kind`, `Free`, `Order`). The locker builds from this; the client already owns
+  the visuals, so only names and lock state need replicating.
 - `ReplicatedStorage.AvailableModes`: one StringValue per loadable mode (Name = module name,
   Value = display name, attributes `MinPlayers` and `MaxPlayers`, where 0 means no cap). The client
   builds the modes screen from this intersected with the modes it has screens for, so nothing is
@@ -216,8 +230,9 @@ reach the server half. The shell calls `reset()` when a match ends.
 ## Remotes (ReplicatedStorage.Remotes)
 All shell-owned and mode-agnostic. Modes never create their own remotes.
 - RemoteEvent `LobbyAction`: client -> server, actions "ready", "unready", "start", "playAgain", "toLobby",
-  "setMode" (second arg is a mode id; host only, lobby only), and "inLobby" (second arg is a boolean;
-  leaving the lobby also clears Ready)
+  "setMode" (second arg is a mode id; host only, lobby only), "inLobby" (second arg is a boolean;
+  leaving the lobby also clears Ready), and "equip" (second arg is a cosmetic id - the catalogue
+  knows its kind, and `Cosmetics.equip` refuses anything unowned, so nothing trusts the client)
 - RemoteEvent `MatchOver`: server -> client, final standings plus the optional `matchSummary` line
 - RemoteEvent `ModeEvent`: both directions, first arg is a kind string the active mode defines
 - RemoteFunction `ModeRequest`: client asks the active mode something, first arg is a kind string
@@ -277,6 +292,9 @@ return {
   the `while true` loops - not raw Lua speed. Cache anything rebuilt on a hot path onto the immutable
   object it belongs to (see `prompt.spellings` in AnswerJudge). Do not churn working, playtested code
   for wins too small to measure at this player count.
+- Persisted player data: **never write after a failed read.** If a load errors we do not know what
+  the player had, and saving defaults destroys it. `Shared/Profile.luau` goes read-only for the
+  session instead. Keep store names versioned so a bad schema can be abandoned.
 - Never sell anything that affects scoring (future monetization is cosmetic / host controls only).
   `Shared/Cosmetics.luau` is where that is enforced: entitlements are server-decided, cosmetic-only,
   and a client never asserts what it owns. Keep all three properties when adding to it.

@@ -369,6 +369,126 @@ local function buildRecap()
 	end
 end
 
+---------------------------------------------------------------- locker
+
+local cosmeticsFolder = ReplicatedStorage:WaitForChild("Cosmetics")
+
+local lockerFrame = UiKit.panel(gui)
+
+UiKit.label(lockerFrame, {
+	Size = UDim2.new(1, -20, 0.11, 0), Position = UDim2.new(0, 10, 0.03, 0),
+	max = UiKit.TEXT.title, TextScaled = true, Font = Enum.Font.GothamBold, Text = "Locker",
+})
+UiKit.label(lockerFrame, {
+	Size = UDim2.new(1, -20, 0.055, 0), Position = UDim2.new(0, 10, 0.145, 0),
+	max = UiKit.TEXT.body, TextScaled = true, TextColor3 = UiKit.DIM,
+	Text = "Your banner frames you all match",
+})
+
+local lockerGrid = UiKit.make("ScrollingFrame", {
+	Size = UDim2.new(1, -20, 0.56, 0), Position = UDim2.new(0, 10, 0.21, 0),
+	BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+	AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), Parent = lockerFrame,
+})
+UiKit.make("UIGridLayout", {
+	CellSize = UDim2.fromOffset(112, 88), CellPadding = UDim2.fromOffset(10, 10),
+	HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	SortOrder = Enum.SortOrder.LayoutOrder, Parent = lockerGrid,
+})
+
+local lockerHint = UiKit.label(lockerFrame, {
+	Size = UDim2.new(1, -20, 0.06, 0), Position = UDim2.new(0, 10, 0.78, 0),
+	max = UiKit.TEXT.body, TextScaled = true, Font = Enum.Font.GothamMedium,
+	TextColor3 = UiKit.YELLOW, Text = "",
+})
+
+local lockerSwatches = {}
+
+local function buildLocker()
+	for _, sw in ipairs(lockerSwatches) do
+		sw:Destroy()
+	end
+	table.clear(lockerSwatches)
+
+	local equipped = player:GetAttribute("Banner")
+
+	local items = {}
+	for _, entry in ipairs(cosmeticsFolder:GetChildren()) do
+		if entry:GetAttribute("Kind") == "Banner" then
+			table.insert(items, entry)
+		end
+	end
+	table.sort(items, function(a, b)
+		return (a:GetAttribute("Order") or 99) < (b:GetAttribute("Order") or 99)
+	end)
+
+	for i, entry in ipairs(items) do
+		local id = entry.Name
+		local owned = entry:GetAttribute("Free") == true
+		local isOn = equipped == id
+		local skin = Cosmetics.banner(id)
+
+		local sw = UiKit.make("TextButton", {
+			BackgroundColor3 = UiKit.WHITE, Text = "", AutoButtonColor = owned,
+			LayoutOrder = i, Parent = lockerGrid,
+		})
+		UiKit.corner(sw, 8)
+		UiKit.make("UIGradient", {
+			Rotation = 90, Color = ColorSequence.new(skin.from, skin.to), Parent = sw,
+		})
+		UiKit.make("UIStroke", {
+			Color = isOn and UiKit.WHITE or skin.edge,
+			Thickness = isOn and 3 or 1,
+			Transparency = owned and (isOn and 0 or 0.4) or 0.7,
+			Parent = sw,
+		})
+
+		-- locked items stay visible but obviously out of reach
+		if not owned then
+			UiKit.make("Frame", {
+				Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(),
+				BackgroundTransparency = 0.55, BorderSizePixel = 0, ZIndex = 2, Parent = sw,
+			})
+		end
+
+		UiKit.label(sw, {
+			Size = UDim2.new(1, -8, 0, 16), Position = UDim2.new(0, 4, 1, -34),
+			TextSize = 13, Font = Enum.Font.GothamBold, ZIndex = 3, Text = entry.Value,
+		})
+		UiKit.label(sw, {
+			Size = UDim2.new(1, -8, 0, 14), Position = UDim2.new(0, 4, 1, -18),
+			TextSize = 11, ZIndex = 3, TextColor3 = isOn and UiKit.GREEN or UiKit.DIM,
+			Text = (not owned and "Locked") or (isOn and "Equipped") or "Tap to wear",
+		})
+
+		sw.Activated:Connect(function()
+			if not owned then
+				lockerHint.Text = ("%s isn't unlocked yet"):format(entry.Value)
+				return
+			end
+			lockerHint.Text = ""
+			-- the server validates ownership and saves; the attribute comes back to us
+			remotes.LobbyAction:FireServer("equip", id)
+		end)
+
+		table.insert(lockerSwatches, sw)
+	end
+end
+
+-- repaint when the equip lands, rather than guessing it worked
+player:GetAttributeChangedSignal("Banner"):Connect(function()
+	if nav == "locker" then
+		buildLocker()
+	end
+end)
+
+local lockerBack = UiKit.button(lockerFrame, "Back", UiKit.GRAY,
+	UDim2.new(1, -20, 0.12, 0), UDim2.new(0, 10, 0.85, 0))
+lockerBack.Activated:Connect(function()
+	lockerHint.Text = ""
+	goTo("menu")
+end)
+
 ---------------------------------------------------------------- main menu
 
 local menuFrame = UiKit.panel(gui)
@@ -383,18 +503,24 @@ UiKit.label(menuFrame, {
 })
 
 local playButton = UiKit.button(menuFrame, "Play", UiKit.ACCENT,
-	UDim2.new(1, -40, 0.16, 0), UDim2.new(0, 20, 0.44, 0))
+	UDim2.new(1, -40, 0.15, 0), UDim2.new(0, 20, 0.40, 0))
+local lockerButton = UiKit.button(menuFrame, "Locker", UiKit.BLUE,
+	UDim2.new(1, -40, 0.12, 0), UDim2.new(0, 20, 0.57, 0))
 local storeButton = UiKit.button(menuFrame, "Store", UiKit.GRAY,
-	UDim2.new(1, -40, 0.13, 0), UDim2.new(0, 20, 0.64, 0))
+	UDim2.new(1, -40, 0.12, 0), UDim2.new(0, 20, 0.71, 0))
 
 local menuHint = UiKit.label(menuFrame, {
-	Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.8, 0),
+	Size = UDim2.new(1, -20, 0.06, 0), Position = UDim2.new(0, 10, 0.85, 0),
 	TextScaled = true, Font = Enum.Font.GothamMedium, TextColor3 = UiKit.YELLOW, Text = "",
 })
 
 playButton.Activated:Connect(function()
 	menuHint.Text = ""
 	goTo("modes")
+end)
+lockerButton.Activated:Connect(function()
+	menuHint.Text = ""
+	goTo("locker")
 end)
 storeButton.Activated:Connect(function()
 	menuHint.Text = "The store isn't built yet"
@@ -772,6 +898,7 @@ local function render()
 
 	introFrame.Visible = screen == "intro"
 	recapFrame.Visible = screen == "recap"
+	lockerFrame.Visible = screen == "locker"
 	menuFrame.Visible = screen == "menu"
 	modesFrame.Visible = screen == "modes"
 	groupFrame.Visible = screen == "group"
@@ -797,6 +924,8 @@ local function render()
 			buildIntro()
 		elseif screen == "recap" then
 			buildRecap()
+		elseif screen == "locker" then
+			buildLocker()
 		end
 	end
 
