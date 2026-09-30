@@ -117,8 +117,10 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   first, then greyed-out entries from its `PLANNED` list - a planned name drops off automatically once
   a real module with that name exists. The **locker** (off the menu) lists every banner from
   `ReplicatedStorage.Cosmetics`, ordered, with owned ones tappable and locked ones dimmed but
-  visible. Equipping fires `LobbyAction "equip"` and repaints when the attribute comes back, rather
-  than assuming it worked.
+  visible. A live preview sits beside the grid showing your avatar wearing the equipped banner -
+  equipping blind is the main thing a locker should fix. Equipping fires `LobbyAction "equip"`, and
+  both the swatches and the preview repaint when the attribute comes back rather than assuming it
+  worked, so neither can ever show something the server refused.
 - `UiKit.luau`: the whole design system - palette, `SPACE`/`TEXT`/`RADIUS` scales, and the
   `panel`/`label`/`button`/`field`/`corner`/`escape` helpers. Screens must use the scales rather than
   raw numbers. `TEXT` values are **ceilings for TextScaled text, not fixed sizes**: TextScaled alone

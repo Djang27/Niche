@@ -386,7 +386,7 @@ UiKit.label(lockerFrame, {
 })
 
 local lockerGrid = UiKit.make("ScrollingFrame", {
-	Size = UDim2.new(1, -20, 0.56, 0), Position = UDim2.new(0, 10, 0.21, 0),
+	Size = UDim2.new(0.62, -20, 0.56, 0), Position = UDim2.new(0.37, 0, 0.21, 0),
 	BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
 	AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), Parent = lockerFrame,
 })
@@ -402,9 +402,57 @@ local lockerHint = UiKit.label(lockerFrame, {
 	TextColor3 = UiKit.YELLOW, Text = "",
 })
 
+-- A live preview beside the grid: equipping blind is the main thing a locker should fix.
+-- It shows what is actually equipped, repainted when the attribute comes back, so it can
+-- never show something the server refused.
+local previewTile = UiKit.make("Frame", {
+	Size = UDim2.new(0.36, 0, 0.56, 0), Position = UDim2.new(0, 10, 0.21, 0),
+	BackgroundColor3 = UiKit.WHITE, Parent = lockerFrame,
+})
+UiKit.corner(previewTile, 10)
+local previewGradient = UiKit.make("UIGradient", { Rotation = 90, Parent = previewTile })
+local previewStroke = UiKit.make("UIStroke", { Thickness = 2, Transparency = 0.15, Parent = previewTile })
+
+local previewAvatar = UiKit.make("ImageLabel", {
+	Size = UDim2.new(0.82, 0, 0.62, 0), Position = UDim2.new(0.09, 0, 0.05, 0),
+	BackgroundTransparency = 1, Image = "", Parent = previewTile,
+})
+UiKit.label(previewTile, {
+	Size = UDim2.new(1, -8, 0.13, 0), Position = UDim2.new(0, 4, 0.69, 0),
+	TextScaled = true, max = UiKit.TEXT.body, Font = Enum.Font.GothamBold,
+	Text = player.DisplayName,
+})
+local previewBannerName = UiKit.label(previewTile, {
+	Size = UDim2.new(1, -8, 0.12, 0), Position = UDim2.new(0, 4, 0.83, 0),
+	TextScaled = true, max = UiKit.TEXT.small, TextColor3 = UiKit.WHITE, Text = "",
+})
+
+-- the avatar never changes, so fetch it once
+task.spawn(function()
+	local ok, content = pcall(function()
+		return Players:GetUserThumbnailAsync(player.UserId,
+			Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size420x420)
+	end)
+	if ok then
+		previewAvatar.Image = content
+	end
+end)
+
+local function paintPreview()
+	local id = player:GetAttribute("Banner")
+	local skin = Cosmetics.banner(id)
+	previewGradient.Color = ColorSequence.new(skin.from, skin.to)
+	previewStroke.Color = skin.edge
+
+	local entry = cosmeticsFolder:FindFirstChild(id or "")
+	previewBannerName.Text = entry and entry.Value or ""
+end
+
 local lockerSwatches = {}
 
 local function buildLocker()
+	paintPreview()
+
 	for _, sw in ipairs(lockerSwatches) do
 		sw:Destroy()
 	end
