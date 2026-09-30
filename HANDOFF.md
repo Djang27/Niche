@@ -73,6 +73,15 @@ first, or use a heredoc.
 
 ---
 
+## Before shipping anything paid
+
+**`DEV_UNLOCK_ALL` in `src/server/Shared/Cosmetics.luau` is currently `true`.** It makes
+`ownedBy` pass every item so the whole catalogue is wearable during development. Ship it
+like that and the ownership gate is decorative — everyone gets everything. Each item keeps
+its real `free` flag, so flipping the one constant restores the true lock states.
+
+---
+
 ## Do not do these
 
 - **Do not add `UIPadding` to panels.** Every child is absolutely positioned; padding
@@ -88,6 +97,12 @@ first, or use a heredoc.
 - **Do not churn working, playtested code for performance wins too small to measure.** At
   4-12 players, per-tick table allocations are noise. What actually costs: DataStore quotas,
   TextService limits, per-tick work in `while true` loops.
+- **Do not aspect-constrain containers, only images.** Avatar thumbnails are square and need
+  `UiKit.aspect`; a card or panel does not, and constraining one just leaves dead space beside it.
+  That was a real regression in the locker preview.
+- **Watch pixel minimums against scale slots.** `UiKit.button` carries a 38px minimum height for
+  touch. On a short panel that can exceed the button's scale-sized slot and overlap whatever is
+  below. Budget vertical space with real gaps, and check the arithmetic rather than eyeballing it.
 - **Do not animate real avatars without costing it.** It needs a ViewportFrame, a loaded rig
   per player, and real emote asset IDs. On a phone that is the most expensive thing here.
 
@@ -117,7 +132,9 @@ first, or use a heredoc.
 |---|---|
 | Grow the lists — depth (~200 entries; Jobs 140, Sports 116) and breadth (no pop culture at all) | Nothing. Pure data. |
 | Playtest fixes and data-driven tiers | **Real players** generating answer-log data |
-| ~~Equip UI / inventory~~ | **Done 2026-09-29** — locker off the menu, 12 banners, choices saved via `Shared/Profile.luau` |
+| ~~Equip UI / inventory~~ | **Done** — locker with a tab per cosmetic kind, 12 banners with rarities, live avatar preview, choices saved via `Shared/Profile.luau` |
+| An unlock path | Nothing. The 3 Legendary banners are unobtainable — no gamepass, no earn condition. Decide what earns them, then `ownedBy` does real work. |
+| Per-player ownership | Ownership is currently "is it free", identical for everyone. Gamepasses need a channel telling *each* client what *they* own. |
 | Ranked-lite (Elo, ranks, leaderboard) | Deferred: nobody to calibrate against. Co-op can never be ranked; Teams must be team-vs-team. |
 | Deep Dive `minPlayers` | A decision. At 2 players almost nothing collides, so nearly everything scores. |
 
