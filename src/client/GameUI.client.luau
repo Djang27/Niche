@@ -415,11 +415,18 @@ local lockerGrid = UiKit.make("ScrollingFrame", {
 	BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
 	AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), Parent = lockerFrame,
 })
-UiKit.make("UIGridLayout", {
-	CellSize = UDim2.fromOffset(112, 100), CellPadding = UDim2.fromOffset(10, 10),
+local lockerLayout = UiKit.make("UIGridLayout", {
+	CellPadding = UDim2.fromOffset(8, 8),
 	HorizontalAlignment = Enum.HorizontalAlignment.Center,
 	SortOrder = Enum.SortOrder.LayoutOrder, Parent = lockerGrid,
 })
+
+-- Cells in scale, not pixels: a fixed 112px cell wastes space on a laptop and crowds a
+-- phone. Column count drops on a small screen so a swatch never gets too narrow to read.
+UiKit.onViewport(function(compact)
+	local cols = compact and 2 or 3
+	lockerLayout.CellSize = UDim2.new(1 / cols, -10, 0, compact and 104 or 112)
+end)
 
 local lockerHint = UiKit.label(lockerFrame, {
 	Size = UDim2.new(1, -20, 0.06, 0), Position = UDim2.new(0, 10, 0.78, 0),
@@ -434,7 +441,6 @@ local previewTile = UiKit.make("Frame", {
 	Size = UDim2.new(0.36, 0, 0.5, 0), Position = UDim2.new(0, 10, 0.255, 0),
 	BackgroundColor3 = UiKit.WHITE, Parent = lockerFrame,
 })
-UiKit.aspect(previewTile, 0.74) -- a stable portrait card rather than whatever the panel implies
 UiKit.corner(previewTile, 10)
 local previewGradient = UiKit.make("UIGradient", { Rotation = 90, Parent = previewTile })
 local previewStroke = UiKit.make("UIStroke", { Thickness = 2, Transparency = 0.15, Parent = previewTile })
@@ -551,17 +557,17 @@ buildLocker = function()
 		end
 
 		UiKit.label(sw, {
-			Size = UDim2.new(1, -8, 0, 16), Position = UDim2.new(0, 4, 1, -36),
-			TextSize = 13, Font = Enum.Font.GothamBold, ZIndex = 3, Text = entry.Value,
+			Size = UDim2.new(1, -8, 0, 17), Position = UDim2.new(0, 4, 1, -40),
+			TextSize = 14, Font = Enum.Font.GothamBold, ZIndex = 3, Text = entry.Value,
 		})
 		UiKit.label(sw, {
-			Size = UDim2.new(1, -8, 0, 13), Position = UDim2.new(0, 4, 1, -21),
-			TextSize = 11, Font = Enum.Font.GothamMedium, ZIndex = 3,
+			Size = UDim2.new(1, -8, 0, 14), Position = UDim2.new(0, 4, 1, -24),
+			TextSize = 12, Font = Enum.Font.GothamMedium, ZIndex = 3,
 			TextColor3 = rarityColor, Text = rarity,
 		})
 		UiKit.label(sw, {
-			Size = UDim2.new(1, -8, 0, 12), Position = UDim2.new(0, 4, 1, -10),
-			TextSize = 10, ZIndex = 3,
+			Size = UDim2.new(1, -8, 0, 13), Position = UDim2.new(0, 4, 1, -11),
+			TextSize = 11, ZIndex = 3,
 			TextColor3 = isOn and UiKit.GREEN or UiKit.DIM,
 			Text = (not owned and "Locked")
 				or (not wearable and "Not in game yet")
