@@ -64,14 +64,23 @@ src/server/ (-> ServerScriptService)
   gate - when gamepasses arrive, `ownedBy` is the one place that changes, though the locker will
   also need a per-player ownership channel since "what you own" stops being the same for everyone.
   Equipped ids replicate as player attributes; **visuals live on the client**, so a client can
-  restyle but never grant itself anything. `equip` also writes through to `Profile`.
+  restyle but never grant itself anything. `equip` also writes through to `Profile`. `ownedBy` takes
+  nil for the global question ("free to everyone", what the replicated catalogue needs) or a player
+  for the real answer, which now reads their `owned` set. `publish(player)` pushes gold, gems and
+  the owned list onto attributes.
 - `Shared/Profile.luau`: per-player saved data, and the **first thing here to persist anything about
   a person** - AnswerLog is anonymous aggregate data keyed by prompt. Three rules it enforces: a
   failed load never saves (writing defaults over data we could not read would destroy it, so a
   failed profile is read-only for the session); the store name carries a version so a bad schema can
   be abandoned rather than migrated under pressure; and loading is async so a DataStore outage never
   stops anyone playing. `applyDefaults` runs instantly on join, `restore` catches up when the read
-  lands.
+  lands. Holds `banner`, `revealEffect`, `gold`, `gems` and an `owned` set. **Currency and grants
+  must go through `Profile.transact`, never `Profile.set`.** `set` is backed by `SetAsync`, which is
+  last-write-wins - fine for "which banner am I wearing", where losing a race costs a preference,
+  but a balance can be duplicated or destroyed by a rejoin race or a second server. `transact` is
+  `UpdateAsync`, a read-modify-write on the stored copy, so deducting and granting are one atomic
+  step. Its `mutate(data)` returns false to abort the write entirely (can't afford it), and may run
+  more than once under contention, so it must decide purely from the `data` it is handed.
 - `Shared/Wavelength.luau`: rules every Wavelength mode agrees on - `score(distance)` proximity bands,
   `newTarget()`, `cleanClue(text, maxLen)`, `orderedPlayers(ctx)` - plus `newRotatingMode(config)`, the
   factory Solo and Co-op are both built from. Those two run an identical round (one clue giver,
@@ -230,7 +239,9 @@ reach the server half. The shell calls `reset()` when a match ends.
 - Each Player: `Banner` and `RevealEffect` (equipped cosmetic ids - attributes so the whole room
   sees what you are wearing, not just you), `Score` (running match total, set by `ctx.award` so the shell can keep it on screen
   without a remote), `RoundDelta` (what the last round alone was worth, so the recap can react to a
-  good round even from last place), `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
+  good round even from last place), `Gold` and `Gems` (wallet), `OwnedCosmetics` (comma list of ids
+  owned beyond the free set), `LastEarned` (what the last match paid out, shown on the podium),
+  `Ready`, `InMatch`, `InLobby` (client-reported: is this player sitting in the lobby
   rather than browsing the menu or store). Only `InLobby` players count towards starting a match and
   only they get pulled into one, so an idle player on the menu can never block a countdown.
 - `ReplicatedStorage.Cosmetics`: one StringValue per catalogue item (Name = id, Value = display
@@ -311,6 +322,12 @@ return {
 - Persisted player data: **never write after a failed read.** If a load errors we do not know what
   the player had, and saving defaults destroys it. `Shared/Profile.luau` goes read-only for the
   session instead. Keep store names versioned so a bad schema can be abandoned.
+- Anything touching a balance or a grant uses `Profile.transact` (UpdateAsync), never
+  `Profile.set` (SetAsync). Last-write-wins on currency loses or duplicates gold.
+- **Crates are a paid random item.** Gems are bought with Robux and can open crates, so real money
+  reaches a random roll - the earned-gold path does not change that. Odds must be published in the
+  game, Roblox's content questionnaire answered accordingly, and the age-rating and per-country
+  consequences accepted. Verify the current rules with Roblox directly; they move.
 - `DEV_UNLOCK_ALL` in `Shared/Cosmetics.luau` **must be false before anything is sold**, or the
   ownership gate is decorative. It exists so the catalogue is wearable during development without
   faking every item's `free` flag.

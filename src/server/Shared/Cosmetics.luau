@@ -69,12 +69,33 @@ Cosmetics.Defaults = { Banner = "slate", RevealEffect = "plain" }
 -- (cached - UserOwnsGamePassAsync yields and is rate limited), or a DataStore of granted
 -- items. Until then only free items pass, which keeps the gate honest rather than
 -- permissive-by-default.
-function Cosmetics.ownedBy(_player, id)
+-- Pass nil for `player` to ask the global question ("is this free to everyone"), which is
+-- what the replicated catalogue needs. Pass a player for the real answer.
+function Cosmetics.ownedBy(player, id)
 	local item = Cosmetics.Items[id]
 	if not item then
 		return false
 	end
-	return DEV_UNLOCK_ALL or item.free == true
+	if DEV_UNLOCK_ALL or item.free == true then
+		return true
+	end
+	if not player then
+		return false
+	end
+	local owned = Profile.get(player).owned
+	return owned ~= nil and owned[id] == true
+end
+
+-- Everything a player owns beyond the free set, as a list of ids.
+function Cosmetics.ownedList(player)
+	local out = {}
+	for id in pairs(Profile.get(player).owned or {}) do
+		if Cosmetics.Items[id] then
+			table.insert(out, id)
+		end
+	end
+	table.sort(out)
+	return out
 end
 
 -- what the locker should show as locked, independent of the dev override
@@ -113,6 +134,15 @@ function Cosmetics.equip(player, kind, id)
 	return true
 end
 
+-- Economy state onto attributes so the client can show it without a remote. Ownership is
+-- not secret, so a comma list is fine and keeps it to one attribute.
+function Cosmetics.publish(player)
+	local data = Profile.get(player)
+	player:SetAttribute("Gold", data.gold or 0)
+	player:SetAttribute("Gems", data.gems or 0)
+	player:SetAttribute("OwnedCosmetics", table.concat(Cosmetics.ownedList(player), ","))
+end
+
 -- Called the moment a player joins, before anything has loaded, so no attribute is ever
 -- unset and the client never has to handle nil.
 function Cosmetics.applyDefaults(player)
@@ -130,6 +160,9 @@ function Cosmetics.restore(player)
 		if saved and player.Parent then
 			Cosmetics.equip(player, kind, saved)
 		end
+	end
+	if player.Parent then
+		Cosmetics.publish(player)
 	end
 end
 

@@ -28,7 +28,14 @@ local store = nil
 local cache = {}  -- [player] = { data = {}, loaded = bool, dirty = bool }
 
 local function blank()
-	return { banner = nil, revealEffect = nil }
+	return {
+		version = 1,
+		banner = nil,
+		revealEffect = nil,
+		gold = 0,   -- earned by playing
+		gems = 0,   -- bought with Robux
+		owned = {}, -- [cosmeticId] = true
+	}
 end
 
 if game.GameId == 0 then
@@ -112,6 +119,53 @@ function Profile.save(player)
 		warn(("[Profile] save attempt %d failed for %s: %s"):format(attempt, player.Name, tostring(err)))
 		task.wait(attempt)
 	end
+end
+
+-- Currency and grants go through UpdateAsync, not SetAsync.
+--
+-- SetAsync is last-write-wins, which is fine for "which banner am I wearing" - lose that
+-- race and you lose a preference. It is not fine for a balance: a rejoin race or a second
+-- server can duplicate or destroy gold. UpdateAsync is a read-modify-write on the stored
+-- copy, so deducting and granting happen as one atomic step against the real value.
+--
+-- `mutate(data)` returns true to commit, false to abort (can't afford it, already owned).
+-- It may run more than once under contention, so it must decide purely from `data`.
+-- Yields; call it in a spawned thread.
+function Profile.transact(player, mutate)
+	local entry = cache[player]
+	if not entry then
+		return false, "gone"
+	end
+	-- same rule as saving: if we never read their data, we must not write over it
+	if not entry.loaded and enabled and store then
+		return false, "unloaded"
+	end
+
+	if not enabled or not store then
+		-- no DataStore (Studio without API access, unpublished place). Apply in memory so
+		-- the game is still playable, but the caller can tell it will not persist.
+		local ok = mutate(entry.data)
+		return ok, "offline"
+	end
+
+	local committed = false
+	local ok, err = pcall(function()
+		store:UpdateAsync(keyFor(player), function(stored)
+			local data = stored or entry.data
+			committed = mutate(data) and true or false
+			if not committed then
+				return nil -- abort the write entirely
+			end
+			entry.data = data
+			return data
+		end)
+	end)
+
+	if not ok then
+		warn(("[Profile] transaction failed for %s: %s"):format(player.Name, tostring(err)))
+		return false, "error"
+	end
+	return committed, committed and "ok" or "refused"
 end
 
 function Profile.forget(player)

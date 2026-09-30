@@ -14,6 +14,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Cosmetics = require(script.Parent.Shared.Cosmetics)
+local Profile = require(script.Parent.Shared.Profile)
 
 Players.CharacterAutoLoads = false -- menu-style game, no characters
 
@@ -24,6 +25,8 @@ local MIN_PLAYERS = 1  -- set to 2+ once you're testing with friends
 local DEFAULT_MODE = "Niche"
 local INTRO_TIME = 4   -- a beat to see who you are up against before the first round
 local RECAP_TIME = 4   -- standings between rounds; skipped after the last, the podium follows
+local GOLD_PER_MATCH = 10 -- for turning up
+local GOLD_PER_WIN = 40   -- on top, and ties share first the same way the podium does
 
 ---------------------------------------------------------------- remotes
 -- Built before anything that can fail, so a broken mode never leaves clients
@@ -477,6 +480,25 @@ local function runMatch()
 		end
 		return a.name < b.name
 	end)
+
+	-- Gold for playing, more for winning. Ties share first, consistent with the podium.
+	-- Each award is its own spawned transaction so a slow DataStore never holds up the
+	-- podium, and UpdateAsync keeps a balance safe from a rejoin race.
+	local top = standings[1] and standings[1].score or 0
+	for _, p in ipairs(participantList()) do
+		local won = top > 0 and (scores[p] or 0) == top
+		local amount = GOLD_PER_MATCH + (won and GOLD_PER_WIN or 0)
+		p:SetAttribute("LastEarned", amount)
+		task.spawn(function()
+			Profile.transact(p, function(data)
+				data.gold = (data.gold or 0) + amount
+				return true
+			end)
+			if p.Parent then
+				Cosmetics.publish(p)
+			end
+		end)
+	end
 
 	-- a mode may add one line to the podium: which team won, a co-op total, whatever
 	-- the per-player standings can't express on their own

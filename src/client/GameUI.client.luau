@@ -375,11 +375,31 @@ end
 
 local cosmeticsFolder = ReplicatedStorage:WaitForChild("Cosmetics")
 
+local function currencyText()
+	return ("%d gold   %d gems"):format(
+		player:GetAttribute("Gold") or 0, player:GetAttribute("Gems") or 0)
+end
+
+-- what this player owns beyond the free set, replicated as one comma list
+local function ownedSet()
+	local set = {}
+	for id in string.gmatch(player:GetAttribute("OwnedCosmetics") or "", "[^,]+") do
+		set[id] = true
+	end
+	return set
+end
+
 local lockerFrame = UiKit.panel(gui)
 
 UiKit.label(lockerFrame, {
 	Size = UDim2.new(1, -20, 0.1, 0), Position = UDim2.new(0, 10, 0.02, 0),
 	max = UiKit.TEXT.title, TextScaled = true, Font = Enum.Font.GothamBold, Text = "Locker",
+})
+
+local lockerWallet = UiKit.label(lockerFrame, {
+	Size = UDim2.new(0.5, -10, 0.06, 0), Position = UDim2.new(0.5, 0, 0.04, 0),
+	max = UiKit.TEXT.body, TextScaled = true, Font = Enum.Font.GothamBold,
+	TextColor3 = UiKit.YELLOW, TextXAlignment = Enum.TextXAlignment.Right, Text = "",
 })
 -- One tab per cosmetic kind, then TBD slots for categories that don't exist yet. `false`
 -- means a placeholder rather than a kind.
@@ -498,6 +518,9 @@ buildLocker = function()
 	end
 	table.clear(lockerSwatches)
 
+	lockerWallet.Text = currencyText()
+
+	local mine = ownedSet()
 	local kind = LOCKER_TABS[lockerTab]
 	if not kind then
 		lockerGrid.Visible = false
@@ -525,7 +548,8 @@ buildLocker = function()
 
 	for i, entry in ipairs(items) do
 		local id = entry.Name
-		local owned = entry:GetAttribute("Owned") == true
+		-- globally free (or dev-unlocked), or personally owned
+		local owned = entry:GetAttribute("Owned") == true or mine[id] == true
 		local isOn = equipped == id
 		local rarity = entry:GetAttribute("Rarity") or "Common"
 		local rarityColor = Cosmetics.rarity(rarity)
@@ -603,6 +627,14 @@ for _, kind in ipairs(LOCKER_TABS) do
 		end)
 	end
 end
+-- and when what you own or can afford changes
+for _, attr in ipairs({ "OwnedCosmetics", "Gold", "Gems" }) do
+	player:GetAttributeChangedSignal(attr):Connect(function()
+		if nav == "locker" then
+			buildLocker()
+		end
+	end)
+end
 
 local lockerBack = UiKit.button(lockerFrame, "Back", UiKit.GRAY,
 	UDim2.new(1, -20, 0.13, 0), UDim2.new(0, 10, 0.82, 0))
@@ -622,6 +654,12 @@ UiKit.label(menuFrame, {
 UiKit.label(menuFrame, {
 	Size = UDim2.new(1, -20, 0.07, 0), Position = UDim2.new(0, 10, 0.28, 0),
 	TextScaled = true, TextColor3 = UiKit.DIM, Text = "Party games, one lobby",
+})
+
+local menuWallet = UiKit.label(menuFrame, {
+	Size = UDim2.new(1, -20, 0.05, 0), Position = UDim2.new(0, 10, 0.345, 0),
+	max = UiKit.TEXT.body, TextScaled = true, Font = Enum.Font.GothamBold,
+	TextColor3 = UiKit.YELLOW, Text = "",
 })
 
 local playButton = UiKit.button(menuFrame, "Play", UiKit.ACCENT,
@@ -916,13 +954,22 @@ remotes.MatchOver.OnClientEvent:Connect(function(standings, summary)
 	end
 
 	local mode = activeMode()
+	local earned = player:GetAttribute("LastEarned") or 0
+	local tail = {}
+	if summary then
+		table.insert(tail, summary)
+	end
+	if earned > 0 then
+		table.insert(tail, ("+%d gold"):format(earned))
+	end
+
 	if mode and mode.hideStandings then
 		-- no meaningful individual ranking in this mode, so the summary is the result
 		standingsLabel.Text = summary or ""
-		summaryLabel.Text = ""
+		summaryLabel.Text = earned > 0 and ("+%d gold"):format(earned) or ""
 	else
 		standingsLabel.Text = table.concat(lines, "\n")
-		summaryLabel.Text = summary or ""
+		summaryLabel.Text = table.concat(tail, "   ")
 	end
 	playAgainButton.Visible = true
 	toLobbyButton.Visible = true
@@ -1055,6 +1102,8 @@ local function render()
 		renderLobby(state)
 	elseif screen == "game" then
 		renderScore()
+	elseif screen == "menu" then
+		menuWallet.Text = currencyText()
 	end
 end
 
