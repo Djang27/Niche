@@ -381,19 +381,42 @@ UiKit.label(lockerFrame, {
 	Size = UDim2.new(1, -20, 0.11, 0), Position = UDim2.new(0, 10, 0.03, 0),
 	max = UiKit.TEXT.title, TextScaled = true, Font = Enum.Font.GothamBold, Text = "Locker",
 })
-UiKit.label(lockerFrame, {
-	Size = UDim2.new(1, -20, 0.055, 0), Position = UDim2.new(0, 10, 0.145, 0),
-	max = UiKit.TEXT.body, TextScaled = true, TextColor3 = UiKit.DIM,
-	Text = "Your banner frames you all match",
-})
+-- One tab per cosmetic kind, then TBD slots for categories that don't exist yet. `false`
+-- means a placeholder rather than a kind.
+local KIND_LABELS = { Banner = "Banners", RevealEffect = "Effects" }
+local LOCKER_TABS = { "Banner", "RevealEffect", false, false }
+local lockerTab = 1
+
+-- the tab handlers need this before it is written
+local buildLocker
+local tabButtons = {}
+
+for i, kind in ipairs(LOCKER_TABS) do
+	local b = UiKit.button(lockerFrame,
+		kind and (KIND_LABELS[kind] or kind) or "TBD",
+		UiKit.FIELD,
+		UDim2.new(0.25, -8, 0.085, 0), UDim2.new(0.25 * (i - 1), 4, 0.15, 0),
+		UiKit.TEXT.body)
+	b.Activated:Connect(function()
+		lockerTab = i
+		buildLocker()
+	end)
+	tabButtons[i] = b
+end
+
+local function paintTabs()
+	for i, b in ipairs(tabButtons) do
+		b.BackgroundColor3 = (i == lockerTab) and UiKit.ACCENT or UiKit.FIELD
+	end
+end
 
 local lockerGrid = UiKit.make("ScrollingFrame", {
-	Size = UDim2.new(0.62, -20, 0.56, 0), Position = UDim2.new(0.37, 0, 0.21, 0),
+	Size = UDim2.new(0.62, -20, 0.5, 0), Position = UDim2.new(0.37, 0, 0.255, 0),
 	BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
 	AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), Parent = lockerFrame,
 })
 UiKit.make("UIGridLayout", {
-	CellSize = UDim2.fromOffset(112, 88), CellPadding = UDim2.fromOffset(10, 10),
+	CellSize = UDim2.fromOffset(112, 100), CellPadding = UDim2.fromOffset(10, 10),
 	HorizontalAlignment = Enum.HorizontalAlignment.Center,
 	SortOrder = Enum.SortOrder.LayoutOrder, Parent = lockerGrid,
 })
@@ -408,7 +431,7 @@ local lockerHint = UiKit.label(lockerFrame, {
 -- It shows what is actually equipped, repainted when the attribute comes back, so it can
 -- never show something the server refused.
 local previewTile = UiKit.make("Frame", {
-	Size = UDim2.new(0.36, 0, 0.56, 0), Position = UDim2.new(0, 10, 0.21, 0),
+	Size = UDim2.new(0.36, 0, 0.5, 0), Position = UDim2.new(0, 10, 0.255, 0),
 	BackgroundColor3 = UiKit.WHITE, Parent = lockerFrame,
 })
 UiKit.aspect(previewTile, 0.74) -- a stable portrait card rather than whatever the panel implies
@@ -455,19 +478,31 @@ end
 
 local lockerSwatches = {}
 
-local function buildLocker()
+local lockerEmpty = UiKit.label(lockerFrame, {
+	Size = UDim2.new(0.62, -20, 0.5, 0), Position = UDim2.new(0.37, 0, 0.255, 0),
+	TextWrapped = true, TextSize = 15, TextColor3 = UiKit.DIM, Visible = false, Text = "",
+})
+
+buildLocker = function()
 	paintPreview()
+	paintTabs()
 
 	for _, sw in ipairs(lockerSwatches) do
 		sw:Destroy()
 	end
 	table.clear(lockerSwatches)
 
-	local equipped = player:GetAttribute("Banner")
+	local kind = LOCKER_TABS[lockerTab]
+	if not kind then
+		lockerGrid.Visible = false
+		lockerEmpty.Visible = true
+		lockerEmpty.Text = "Another category will live here.\nNothing to show yet."
+		return
+	end
 
 	local items = {}
 	for _, entry in ipairs(cosmeticsFolder:GetChildren()) do
-		if entry:GetAttribute("Kind") == "Banner" then
+		if entry:GetAttribute("Kind") == kind then
 			table.insert(items, entry)
 		end
 	end
@@ -475,28 +510,39 @@ local function buildLocker()
 		return (a:GetAttribute("Order") or 99) < (b:GetAttribute("Order") or 99)
 	end)
 
+	lockerGrid.Visible = #items > 0
+	lockerEmpty.Visible = #items == 0
+	lockerEmpty.Text = "Nothing in this category yet."
+
+	local equipped = player:GetAttribute(kind)
+	local wearable = kind == "Banner" -- effects are catalogued but nothing renders them
+
 	for i, entry in ipairs(items) do
 		local id = entry.Name
-		local owned = entry:GetAttribute("Free") == true
+		local owned = entry:GetAttribute("Owned") == true
 		local isOn = equipped == id
-		local skin = Cosmetics.banner(id)
+		local rarity = entry:GetAttribute("Rarity") or "Common"
+		local rarityColor = Cosmetics.rarity(rarity)
 
 		local sw = UiKit.make("TextButton", {
-			BackgroundColor3 = UiKit.WHITE, Text = "", AutoButtonColor = owned,
+			BackgroundColor3 = kind == "Banner" and UiKit.WHITE or UiKit.FIELD,
+			Text = "", AutoButtonColor = owned and wearable,
 			LayoutOrder = i, Parent = lockerGrid,
 		})
 		UiKit.corner(sw, 8)
-		UiKit.make("UIGradient", {
-			Rotation = 90, Color = ColorSequence.new(skin.from, skin.to), Parent = sw,
-		})
+		if kind == "Banner" then
+			local skin = Cosmetics.banner(id)
+			UiKit.make("UIGradient", {
+				Rotation = 90, Color = ColorSequence.new(skin.from, skin.to), Parent = sw,
+			})
+		end
+		-- the outline carries rarity, so it is scannable without reading; thickness
+		-- carries equipped, so the two never fight for the same channel
 		UiKit.make("UIStroke", {
-			Color = isOn and UiKit.WHITE or skin.edge,
-			Thickness = isOn and 3 or 1,
-			Transparency = owned and (isOn and 0 or 0.4) or 0.7,
-			Parent = sw,
+			Color = rarityColor, Thickness = isOn and 3 or 1,
+			Transparency = owned and (isOn and 0 or 0.35) or 0.7, Parent = sw,
 		})
 
-		-- locked items stay visible but obviously out of reach
 		if not owned then
 			UiKit.make("Frame", {
 				Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(),
@@ -505,18 +551,31 @@ local function buildLocker()
 		end
 
 		UiKit.label(sw, {
-			Size = UDim2.new(1, -8, 0, 16), Position = UDim2.new(0, 4, 1, -34),
+			Size = UDim2.new(1, -8, 0, 16), Position = UDim2.new(0, 4, 1, -36),
 			TextSize = 13, Font = Enum.Font.GothamBold, ZIndex = 3, Text = entry.Value,
 		})
 		UiKit.label(sw, {
-			Size = UDim2.new(1, -8, 0, 14), Position = UDim2.new(0, 4, 1, -18),
-			TextSize = 11, ZIndex = 3, TextColor3 = isOn and UiKit.GREEN or UiKit.DIM,
-			Text = (not owned and "Locked") or (isOn and "Equipped") or "Tap to wear",
+			Size = UDim2.new(1, -8, 0, 13), Position = UDim2.new(0, 4, 1, -21),
+			TextSize = 11, Font = Enum.Font.GothamMedium, ZIndex = 3,
+			TextColor3 = rarityColor, Text = rarity,
+		})
+		UiKit.label(sw, {
+			Size = UDim2.new(1, -8, 0, 12), Position = UDim2.new(0, 4, 1, -10),
+			TextSize = 10, ZIndex = 3,
+			TextColor3 = isOn and UiKit.GREEN or UiKit.DIM,
+			Text = (not owned and "Locked")
+				or (not wearable and "Not in game yet")
+				or (isOn and "Equipped")
+				or "Tap to wear",
 		})
 
 		sw.Activated:Connect(function()
 			if not owned then
 				lockerHint.Text = ("%s isn't unlocked yet"):format(entry.Value)
+				return
+			end
+			if not wearable then
+				lockerHint.Text = ("%s exists but nothing renders it yet"):format(entry.Value)
 				return
 			end
 			lockerHint.Text = ""
@@ -529,11 +588,15 @@ local function buildLocker()
 end
 
 -- repaint when the equip lands, rather than guessing it worked
-player:GetAttributeChangedSignal("Banner"):Connect(function()
-	if nav == "locker" then
-		buildLocker()
+for _, kind in ipairs(LOCKER_TABS) do
+	if kind then
+		player:GetAttributeChangedSignal(kind):Connect(function()
+			if nav == "locker" then
+				buildLocker()
+			end
+		end)
 	end
-end)
+end
 
 local lockerBack = UiKit.button(lockerFrame, "Back", UiKit.GRAY,
 	UDim2.new(1, -20, 0.12, 0), UDim2.new(0, 10, 0.85, 0))

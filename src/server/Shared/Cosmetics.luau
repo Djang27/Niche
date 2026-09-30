@@ -18,33 +18,45 @@ local Cosmetics = {}
 -- profile field per kind, so a saved choice survives a rejoin
 local FIELD = { Banner = "banner", RevealEffect = "revealEffect" }
 
--- kind -> what a player wears/uses. Add kinds here as they are built.
+-- kind -> what a player wears/uses. Add kinds here as they are built; the locker builds a
+-- tab per kind from this list, so a new kind needs no UI work.
 Cosmetics.KINDS = { "Banner", "RevealEffect" }
+Cosmetics.KIND_LABELS = { Banner = "Banners", RevealEffect = "Effects" }
+
+-- Rarity reuses the answer tiers rather than inventing a second vocabulary for the same
+-- idea. Cosmetic only - rarity never affects scoring.
+Cosmetics.RARITIES = { "Common", "Rare", "Epic", "Legendary" }
+
+-- DEVELOPMENT ONLY. Makes ownedBy pass everything so the whole catalogue is wearable while
+-- building. Each item keeps its real `free` flag, so turning this off restores the true
+-- lock states rather than needing them reconstructed. **Must be false before anything is
+-- sold**, or the gate is decorative.
+local DEV_UNLOCK_ALL = true
 
 -- `free = true` means everyone has it. Anything else needs an ownership source, which
 -- is deliberately not wired yet - see ownedBy below.
 Cosmetics.Items = {
 	-- banners frame your avatar on the intro screen, the between-round recap, and every
 	-- reveal card - three surfaces a round, which is why they are worth owning
-	slate    = { kind = "Banner", name = "Slate", free = true, order = 1 },
-	storm    = { kind = "Banner", name = "Storm", free = true, order = 2 },
-	deep     = { kind = "Banner", name = "Deep", free = true, order = 3 },
-	ocean    = { kind = "Banner", name = "Ocean", free = true, order = 4 },
-	forest   = { kind = "Banner", name = "Forest", free = true, order = 5 },
-	mint     = { kind = "Banner", name = "Mint", free = true, order = 6 },
-	sunrise  = { kind = "Banner", name = "Sunrise", free = true, order = 7 },
-	ember    = { kind = "Banner", name = "Ember", free = true, order = 8 },
-	rose     = { kind = "Banner", name = "Rose", free = true, order = 9 },
-	-- not free, so the gate below has something to actually refuse and the locker has
-	-- something to want
-	aurora   = { kind = "Banner", name = "Aurora", order = 10 },
-	gold     = { kind = "Banner", name = "Gold", order = 11 },
-	void     = { kind = "Banner", name = "Void", order = 12 },
+	slate    = { kind = "Banner", name = "Slate",   rarity = "Common",    free = true, order = 1 },
+	storm    = { kind = "Banner", name = "Storm",   rarity = "Common",    free = true, order = 2 },
+	ocean    = { kind = "Banner", name = "Ocean",   rarity = "Common",    free = true, order = 3 },
+	forest   = { kind = "Banner", name = "Forest",  rarity = "Common",    free = true, order = 4 },
+	deep     = { kind = "Banner", name = "Deep",    rarity = "Rare",      free = true, order = 5 },
+	mint     = { kind = "Banner", name = "Mint",    rarity = "Rare",      free = true, order = 6 },
+	sunrise  = { kind = "Banner", name = "Sunrise", rarity = "Rare",      free = true, order = 7 },
+	ember    = { kind = "Banner", name = "Ember",   rarity = "Epic",      free = true, order = 8 },
+	rose     = { kind = "Banner", name = "Rose",    rarity = "Epic",      free = true, order = 9 },
+	-- `free` omitted: these are the ones that would be earned or bought. Wearable right
+	-- now only because DEV_UNLOCK_ALL is on.
+	aurora   = { kind = "Banner", name = "Aurora",  rarity = "Legendary", order = 10 },
+	gold     = { kind = "Banner", name = "Gold",    rarity = "Legendary", order = 11 },
+	void     = { kind = "Banner", name = "Void",    rarity = "Legendary", order = 12 },
 
-	-- reveal effects: how your answer lands at a reveal. Catalogued so the shape is
-	-- proven, but nothing renders them yet - building unowned cosmetics is waste.
-	plain    = { kind = "RevealEffect", name = "Plain", free = true, order = 1 },
-	emberise = { kind = "RevealEffect", name = "Ember", order = 2 },
+	-- reveal effects: how your answer lands at a reveal. Catalogued and listed in the
+	-- locker so the shape is proven, but nothing renders them yet.
+	plain    = { kind = "RevealEffect", name = "Plain", rarity = "Common", free = true, order = 1 },
+	emberise = { kind = "RevealEffect", name = "Ember", rarity = "Epic", order = 2 },
 }
 
 Cosmetics.Defaults = { Banner = "slate", RevealEffect = "plain" }
@@ -59,7 +71,20 @@ Cosmetics.Defaults = { Banner = "slate", RevealEffect = "plain" }
 -- permissive-by-default.
 function Cosmetics.ownedBy(_player, id)
 	local item = Cosmetics.Items[id]
+	if not item then
+		return false
+	end
+	return DEV_UNLOCK_ALL or item.free == true
+end
+
+-- what the locker should show as locked, independent of the dev override
+function Cosmetics.isFree(id)
+	local item = Cosmetics.Items[id]
 	return item ~= nil and item.free == true
+end
+
+function Cosmetics.devUnlockAll()
+	return DEV_UNLOCK_ALL
 end
 
 function Cosmetics.isKind(id, kind)

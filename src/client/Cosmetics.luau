@@ -60,6 +60,18 @@ Cosmetics.Banners = {
 	},
 }
 
+-- Rarity colours, matching the answer tiers so the two scales read as one vocabulary.
+Cosmetics.RARITY = {
+	Common = Color3.fromRGB(176, 176, 190),
+	Rare = Color3.fromRGB(77, 166, 255),
+	Epic = Color3.fromRGB(255, 153, 51),
+	Legendary = Color3.fromRGB(255, 215, 0),
+}
+
+function Cosmetics.rarity(name)
+	return Cosmetics.RARITY[name] or Cosmetics.RARITY.Common
+end
+
 -- unknown or missing id falls back rather than erroring: a player wearing something this
 -- client has not heard of should still render
 function Cosmetics.banner(id)

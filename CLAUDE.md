@@ -53,8 +53,14 @@ src/server/ (-> ServerScriptService)
 - `Shared/TextFilter.luau`: TextService wrapper for any player-typed text other players will see.
   `forBroadcast(text, fromUserId)`, `forUser(text, fromUserId, toUserId)`, `forViewers(text, fromUserId, viewers)`.
   Require from a mode as `require(script.Parent.Parent.Shared.TextFilter)`.
-- `Shared/Cosmetics.luau`: the entitlement seam. Catalogue by kind (`Banner` x12, `RevealEffect`),
-  plus `ownedBy`, `equipped`, `equip`, `applyDefaults`, `restore`. Only `free = true` items pass the
+- `Shared/Cosmetics.luau`: the entitlement seam. Catalogue by kind (`Banner` x12, `RevealEffect` x2),
+  plus `ownedBy`, `equipped`, `equip`, `applyDefaults`, `restore`, `isFree`. Every item carries a
+  `rarity` from `RARITIES` (Common / Rare / Epic / Legendary) - the same vocabulary as the answer
+  tiers on purpose, and cosmetic only: rarity never touches scoring. `KINDS` drives the locker's
+  tabs, so a new kind needs no UI work. **`DEV_UNLOCK_ALL` is currently true**, which makes
+  `ownedBy` pass everything so the whole catalogue is wearable while building; each item keeps its
+  real `free` flag so flipping the constant restores the true lock states rather than needing them
+  reconstructed. Only `free = true` items pass the
   gate - when gamepasses arrive, `ownedBy` is the one place that changes, though the locker will
   also need a per-player ownership channel since "what you own" stops being the same for everyone.
   Equipped ids replicate as player attributes; **visuals live on the client**, so a client can
@@ -117,7 +123,11 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   first, then greyed-out entries from its `PLANNED` list - a planned name drops off automatically once
   a real module with that name exists. The **locker** (off the menu) lists every banner from
   `ReplicatedStorage.Cosmetics`, ordered, with owned ones tappable and locked ones dimmed but
-  visible. A live preview sits beside the grid showing your avatar wearing the equipped banner -
+  visible, **one tab per cosmetic kind** plus TBD slots for categories that do not exist yet. An
+  item's outline carries its rarity colour and its thickness carries equipped, so the two never
+  compete for the same channel. Reveal effects are listed but marked "Not in game yet" - catalogued
+  to prove the shape, with nothing rendering them.
+  A live preview sits beside the grid showing your avatar wearing the equipped banner -
   equipping blind is the main thing a locker should fix. Equipping fires `LobbyAction "equip"`, and
   both the swatches and the preview repaint when the attribute comes back rather than assuming it
   worked, so neither can ever show something the server refused.
@@ -224,7 +234,9 @@ reach the server half. The shell calls `reset()` when a match ends.
   rather than browsing the menu or store). Only `InLobby` players count towards starting a match and
   only they get pulled into one, so an idle player on the menu can never block a countdown.
 - `ReplicatedStorage.Cosmetics`: one StringValue per catalogue item (Name = id, Value = display
-  name, attributes `Kind`, `Free`, `Order`). The locker builds from this; the client already owns
+  name, attributes `Kind`, `Rarity`, `Order`, `Owned` and `Free`). `Owned` is what the locker gates
+  on and honours the dev override; `Free` records what the item would really cost, so the two stay
+  distinguishable once the override is off. The locker builds from this; the client already owns
   the visuals, so only names and lock state need replicating.
 - `ReplicatedStorage.AvailableModes`: one StringValue per loadable mode (Name = module name,
   Value = display name, attributes `MinPlayers` and `MaxPlayers`, where 0 means no cap). The client
@@ -299,6 +311,9 @@ return {
 - Persisted player data: **never write after a failed read.** If a load errors we do not know what
   the player had, and saving defaults destroys it. `Shared/Profile.luau` goes read-only for the
   session instead. Keep store names versioned so a bad schema can be abandoned.
+- `DEV_UNLOCK_ALL` in `Shared/Cosmetics.luau` **must be false before anything is sold**, or the
+  ownership gate is decorative. It exists so the catalogue is wearable during development without
+  faking every item's `free` flag.
 - Never sell anything that affects scoring (future monetization is cosmetic / host controls only).
   `Shared/Cosmetics.luau` is where that is enforced: entitlements are server-decided, cosmetic-only,
   and a client never asserts what it owns. Keep all three properties when adding to it.

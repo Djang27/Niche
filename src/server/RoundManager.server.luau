@@ -124,8 +124,12 @@ for id, item in pairs(Cosmetics.Items) do
 	entry.Name = id
 	entry.Value = item.name
 	entry:SetAttribute("Kind", item.kind)
-	entry:SetAttribute("Free", item.free == true)
+	entry:SetAttribute("Rarity", item.rarity or "Common")
 	entry:SetAttribute("Order", item.order or 99)
+	-- Owned is what the locker gates on and honours the dev override; Free records what
+	-- the item would really cost, so the distinction survives the flag being flipped.
+	entry:SetAttribute("Owned", Cosmetics.ownedBy(nil, id))
+	entry:SetAttribute("Free", Cosmetics.isFree(id))
 	entry.Parent = cosmeticsFolder
 end
 
