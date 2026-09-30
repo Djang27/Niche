@@ -94,6 +94,17 @@ function UiKit.escape(s)
 	return (s:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
 end
 
+-- Locks a frame's shape. Avatar thumbnails are square, so sizing one in scale units of a
+-- non-square container stretches the face. Anything holding an image wants this.
+function UiKit.aspect(inst, ratio)
+	UiKit.make("UIAspectRatioConstraint", {
+		AspectRatio = ratio or 1,
+		AspectType = Enum.AspectType.FitWithinMaxSize,
+		Parent = inst,
+	})
+	return inst
+end
+
 function UiKit.corner(inst, radius)
 	UiKit.make("UICorner", { CornerRadius = UDim.new(0, radius or UiKit.RADIUS), Parent = inst })
 	return inst

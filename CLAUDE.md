@@ -133,6 +133,8 @@ src/client/ (-> StarterPlayer.StarterPlayerScripts)
   they all grow with it, so there is no per-screen layout work. Buttons carry a `UISizeConstraint`
   minimum so touch targets stay finger-sized. Anything positioned *outside* a panel (the score strip,
   the waiting footer) must subscribe to `onViewport` itself or it will overlap on a phone.
+  `aspect(inst, ratio)` locks a frame's shape - avatar thumbnails are square, so sizing one in scale
+  units of a non-square container stretches the face. Anything holding an image wants it.
 - `Cosmetics.luau`: how each cosmetic id looks. Ids must match `Shared/Cosmetics` exactly; an
   unknown id falls back rather than erroring, so a player wearing something this client has not
   heard of still renders.

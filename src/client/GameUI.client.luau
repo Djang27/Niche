@@ -229,9 +229,11 @@ local function makeTile(grid, p, caption, accent)
 
 	local avatarBottom = caption and 0.56 or 0.72
 	local avatar = UiKit.make("ImageLabel", {
-		Size = UDim2.new(0.78, 0, avatarBottom - 0.06, 0), Position = UDim2.new(0.11, 0, 0.04, 0),
+		Size = UDim2.new(0.78, 0, avatarBottom - 0.06, 0),
+		Position = UDim2.new(0.5, 0, 0.04, 0), AnchorPoint = Vector2.new(0.5, 0),
 		BackgroundTransparency = 1, Image = "", Parent = tile,
 	})
+	UiKit.aspect(avatar) -- thumbnails are square; don't let the tile shape distort the face
 	UiKit.label(tile, {
 		Size = UDim2.new(1, -8, caption and 0.18 or 0.22, 0),
 		Position = UDim2.new(0, 4, avatarBottom, 0),
@@ -409,14 +411,17 @@ local previewTile = UiKit.make("Frame", {
 	Size = UDim2.new(0.36, 0, 0.56, 0), Position = UDim2.new(0, 10, 0.21, 0),
 	BackgroundColor3 = UiKit.WHITE, Parent = lockerFrame,
 })
+UiKit.aspect(previewTile, 0.74) -- a stable portrait card rather than whatever the panel implies
 UiKit.corner(previewTile, 10)
 local previewGradient = UiKit.make("UIGradient", { Rotation = 90, Parent = previewTile })
 local previewStroke = UiKit.make("UIStroke", { Thickness = 2, Transparency = 0.15, Parent = previewTile })
 
 local previewAvatar = UiKit.make("ImageLabel", {
-	Size = UDim2.new(0.82, 0, 0.62, 0), Position = UDim2.new(0.09, 0, 0.05, 0),
+	Size = UDim2.new(0.84, 0, 0.62, 0),
+	Position = UDim2.new(0.5, 0, 0.05, 0), AnchorPoint = Vector2.new(0.5, 0),
 	BackgroundTransparency = 1, Image = "", Parent = previewTile,
 })
+UiKit.aspect(previewAvatar)
 UiKit.label(previewTile, {
 	Size = UDim2.new(1, -8, 0.13, 0), Position = UDim2.new(0, 4, 0.69, 0),
 	TextScaled = true, max = UiKit.TEXT.body, Font = Enum.Font.GothamBold,
